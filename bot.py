@@ -30,7 +30,7 @@ class Bot(commands.Bot):
 
     async def prepare_bot(self):
         self.session = aiohttp.ClientSession()
-        self.db = await asyncpg.connect(config.sql)
+        self.db = await asyncpg.create_pool(config.sql)
 
         query = """CREATE TABLE IF NOT EXISTS
                    webhooks (guild_id bigint, webhook_id bigint);
