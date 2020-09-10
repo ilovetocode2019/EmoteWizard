@@ -13,7 +13,7 @@ logging.basicConfig(
     datefmt="%m/%d/%y - %H:%M:%S %Z" 
 )
 
-extensions = ["cogs.meta", "cogs.emojis"]
+extensions = ["cogs.meta", "cogs.emojis", "cogs.stickers"]
 
 class Bot(commands.Bot):
     def __init__(self):
@@ -34,6 +34,11 @@ class Bot(commands.Bot):
 
         query = """CREATE TABLE IF NOT EXISTS
                    webhooks (guild_id bigint, webhook_id bigint);
+                   """
+        await self.db.execute(query)
+
+        query = """CREATE TABLE IF NOT EXISTS
+                   stickers (owner_id bigint, name text, content_url text);
                    """
         await self.db.execute(query)
 
