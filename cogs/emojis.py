@@ -136,13 +136,26 @@ class Emojis(commands.Cog):
         await ctx.send(":white_check_mark: Unbound webhook")
 
     @commands.command(name="react", descrition="React to a message with any emoji")
-    async def react(self, ctx, emoji: EmojiConverter, message: int = -1):
+    async def react(self, ctx, emoji_name, message = None):
         # Attempt to delete the user's message
         try:
             await ctx.message.delete()
             deleted = True
         except:
             deleted = False
+
+        # Get the emoji
+        emoji = discord.utils.get(self.bot.emojis, name=emoji_name)
+        if not emoji:
+            return await ctx.send(f":x: Couldn't find an emoji named `{emoji_name}`", delete_after=5)
+
+        # Convert message to an int
+        if not message:
+            message = -1
+        try:
+            message = int(message)
+        except:
+            return await ctx.send(f":x: `{message}` is not a integer", delete_after=5)
 
         # If the message is less than 0 it is a message index so we need to fetch that amount of history
         if message < 0:
