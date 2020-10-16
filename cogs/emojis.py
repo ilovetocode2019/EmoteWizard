@@ -146,15 +146,22 @@ class Emojis(commands.Cog):
 
         # If the message is less than 0 it is a message index so we need to fetch that amount of history
         if message < 0:
-            limit = message * -1
-            if not deleted:
-                limit += 1
-            history = await ctx.channel.history(limit=limit).flatten()
-            message = history[limit-1]
+            try:
+                limit = message * -1
+                if not deleted:
+                    limit += 1
+                history = await ctx.channel.history(limit=limit).flatten()
+                message = history[limit-1]
+            except (discord.HTTPException, IndexError):
+                return await ctx.send(":x: Could not fetch message from history", delete_after=5)
 
         # Otherwise just fetch the message
         else:
-            message = await ctx.channel.fetch_message(message)
+            try:
+                message = await ctx.channel.fetch_message(message)
+            except discord.HTTPException:
+                return await ctx.send(":x: Could not fetch message", delete_after=5)
+
         await message.add_reaction(emoji)
 
         # Wait for the use to add a reaction, then we can remove our reaction to make it look like the user used the emoji
