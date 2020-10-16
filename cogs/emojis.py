@@ -13,14 +13,16 @@ class EmojiConverter(commands.Converter):
 
 class WebhookConverter(commands.Converter):
     async def convert(self, ctx, arg):
+        # Attempt to convert the argument into an ID
         try:
             arg = int(arg)
+        # Otherwise attempt to get the ID from the URL using regex
         except:
             arg = re.findall("https://(?:(?:ptb|canary)\.)?discord(?:app)?.com/api/webhooks/([0-9]+)/.+", arg)
             if arg:
                 arg = int(arg[0])
 
-        if not arg:
+        if not type(arg) is int:
             raise commands.errors.BadArgument("That is not a webhook URL or ID")
         return arg
 
@@ -33,27 +35,38 @@ class Emojis(commands.Cog):
         if message.author.bot:
             return
 
+        # Look for 'emojis' in the message
         emojis = re.finditer("\;[^;]+\;", message.content)
         message_content = message.content
 
+        # Iter through the found emois name
         found = []
         for name in emojis:
             emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(";", ""))
             if emoji:
                 message_content = message_content.replace(name.group(0), str(emoji))
                 found.append(str(emoji))
+
+        # If no emojis were found, return
         if len(found) == 0:
             return
 
+
         webhook_config = await self.get_webhook_config(message.guild)
+
+        # If a webhook config and the bot has permissions to delete messages, continue
         if message.guild.me.guild_permissions.manage_messages and webhook_config["webhook_id"]:
+            # Fetch the webhook and if make an HTTP request to update the channel if needed
             webhook = await self.bot.fetch_webhook(webhook_config["webhook_id"])
             if webhook.channel_id != message.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": message.channel.id})
 
+            # Prepare the files, send the webhook, and delete the message
             files = [discord.File(BytesIO(await x.read()), filename=x.filename, spoiler=x.is_spoiler()) for x in message.attachments]
             await webhook.send(content=discord.utils.escape_mentions(message_content), files=files, username=message.author.display_name, avatar_url=message.author.avatar_url)
             await message.delete()
+
+        # Otherwise just send the found emojis through the bot account
         else:
             return await message.channel.send(" ".join(found))
 
@@ -72,17 +85,16 @@ class Emojis(commands.Cog):
 
         return webhook_config
 
-    async def cog_before_invoke(self, ctx):
-        ctx.webhook_config = await self.get_webhook_config(ctx.guild)
-
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook(self, ctx):
-        if not ctx.webhook_config["webhook_id"]:
+        config = await self.get_webhook_config(ctx.guild)
+
+        if not webhook_config["webhook_id"]:
             return await ctx.send(":x: No webhook set")
 
-        webhook = await self.bot.fetch_webhook(ctx.webhook_config["webhook_id"])
+        webhook = await self.bot.fetch_webhook(webhook_config["webhook_id"])
         await ctx.send(f"The webhook set is `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="set", description="Set the webhook")
@@ -125,22 +137,27 @@ class Emojis(commands.Cog):
 
     @commands.command(name="react", descrition="React to a message with any emoji")
     async def react(self, ctx, emoji: EmojiConverter, message: int = -1):
+        # Attempt to delete the user's message
         try:
             await ctx.message.delete()
             deleted = True
         except:
             deleted = False
 
+        # If the message is less than 0 it is a message index so we need to fetch that amount of history
         if message < 0:
             limit = message * -1
             if not deleted:
                 limit += 1
             history = await ctx.channel.history(limit=limit).flatten()
             message = history[limit-1]
+
+        # Otherwise just fetch the message
         else:
             message = await ctx.channel.fetch_message(message)
         await message.add_reaction(emoji)
 
+        # Wait for the use to add a reaction, then we can remove our reaction to make it look like the user used the emoji
         def check(event):
             return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji.id == emoji.id
         await self.bot.wait_for("raw_reaction_add", check=check)
