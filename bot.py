@@ -40,7 +40,7 @@ class Bot(commands.Bot):
 
         self.config = config
         if not hasattr(config, "default_prefix"):
-            config.default_prefix = "n."
+            config.default_prefix = "s."
 
         if not os.path.isfile("prefixes.json"):
             logging.info("prefixes.json not found, creating...")
@@ -56,14 +56,14 @@ class Bot(commands.Bot):
     def guild_prefix(self, guild):
         """Get the default prefix for a guild"""
         if not guild or str(guild.id) not in self._guild_prefixes:
-            return "n."
+            return self.config.default_prefix
 
         return self._guild_prefixes[str(guild.id)][0]
 
     def guild_prefixes(self, guild):
         """Get all the prefixes for a guild"""
         if not guild or str(guild.id) not in self._guild_prefixes:
-            return ["n."]
+            return [self.config.default_prefix]
 
         return self._guild_prefixes[str(guild.id)]
 
