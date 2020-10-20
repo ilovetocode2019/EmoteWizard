@@ -60,7 +60,7 @@ class Stickers(commands.Cog):
         result = await self.bot.db.execute(query, ctx.author.id, name)
         if result == "DELETE 0":
             return await ctx.send(":x: That is not a sticker or you do not own it")
-        await ctx.send(":white_check_mark: Deleted yout sticker")
+        await ctx.send(":white_check_mark: Deleted your sticker")
 
     @sticker.command(name="list", description="View your stickers")
     async def sticker_list(self, ctx):
