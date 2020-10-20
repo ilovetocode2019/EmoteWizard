@@ -86,8 +86,8 @@ class Emojis(commands.Cog):
         return webhook_config
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
-    @commands.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
+    @commands.has_permissions(manage_webhooks=True)
     async def webhook(self, ctx):
         config = await self.get_webhook_config(ctx.guild)
 
@@ -98,6 +98,8 @@ class Emojis(commands.Cog):
         await ctx.send(f"The webhook set is `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="set", description="Set the webhook")
+    @commands.bot_has_permissions(manage_webhooks=True)
+    @commands.has_permissions(manage_webhooks=True)
     async def webhook_set(self, ctx, webhook: WebhookConverter):
         try:
             webhook = await self.bot.fetch_webhook(webhook)
@@ -116,6 +118,8 @@ class Emojis(commands.Cog):
         await ctx.send(":white_check_mark: Webhook set")
 
     @webhook.command(name="create", description="Creates a webhook for the bot")
+    @commands.bot_has_permissions(manage_webhooks=True)
+    @commands.has_permissions(manage_webhooks=True)
     async def webhook_create(self, ctx):
         webhook = await ctx.channel.create_webhook(name="Nitro Hook")
 
