@@ -78,7 +78,7 @@ class Emojis(commands.Cog):
         webhook_config = await self.bot.db.fetchrow(select_query, guild.id)
 
         if not webhook_config:
-            insert_query = """INSERT INTO webhooks(guild_id, webhook_id)
+            insert_query = """INSERT INTO webhooks (guild_id, webhook_id)
                               VALUES ($1, $2);"""
             await self.bot.db.execute(insert_query, guild.id, None)
             webhook_config = await self.bot.db.fetchrow(select_query, guild.id)
@@ -89,7 +89,7 @@ class Emojis(commands.Cog):
     @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
     async def webhook(self, ctx):
-        config = await self.get_webhook_config(ctx.guild)
+        webhook_config = await self.get_webhook_config(ctx.guild)
 
         if not webhook_config["webhook_id"]:
             return await ctx.send(":x: No webhook set")
@@ -108,13 +108,13 @@ class Emojis(commands.Cog):
 
         if webhook.guild_id != ctx.guild.id:
             return await ctx.send(":x: That webhook does not exist")
-        webhook_id = webhook.id
 
-        query = """UPDATE webhooks
-                   SET webhook_id=$1
-                   WHERE webhooks.guild_id=$2;
+        query = """INSERT INTO webhooks (guild_id, webhook_id)
+                   VALUES ($1, $2)
+                   ON CONFLICT (guild_id)
+                   DO UPDATE SET webhook_id=$2;
                 """
-        await self.bot.db.execute(query, webhook_id, webhook.guild.id)
+        await self.bot.db.execute(query, ctx.guild.id, webhook.id)
         await ctx.send(":white_check_mark: Webhook set")
 
     @webhook.command(name="create", description="Creates a webhook for the bot")
@@ -123,20 +123,22 @@ class Emojis(commands.Cog):
     async def webhook_create(self, ctx):
         webhook = await ctx.channel.create_webhook(name="Nitro Hook")
 
-        query = """UPDATE webhooks
-                   SET webhook_id=$1
-                   WHERE webhooks.guild_id=$2;
+        query = """INSERT INTO webhooks (guild_id, webhook_id)
+                   VALUES ($1, $2)
+                   ON CONFLICT (guild_id)
+                   DO UPDATE SET webhook_id=$2;
                 """
-        await self.bot.db.execute(query, webhook.id, ctx.guild.id)
+        await self.bot.db.execute(query, ctx.guild.id, webhook.id)
         await ctx.send(":white_check_mark: Webhook ceated")
 
     @webhook.command(name="unbind", description="Unbund the webhook")
+    @commands.bot_has_permissions(manage_webhooks=True)
+    @commands.has_permissions(manage_webhooks=True)
     async def webhook_unbind(self, ctx):
-        query = """UPDATE webhooks
-                   SET webhook_id=$1
-                   WHERE webhooks.guild_id=$2;
+        query = """DELETE FROM webhooks
+                   WHERE webhooks.guild_id=$1;
                 """
-        await self.bot.db.execute(query, None, ctx.guild.id)
+        await self.bot.db.execute(query, ctx.guild.id)
         await ctx.send(":white_check_mark: Unbound webhook")
 
     @commands.command(name="react", descrition="React to a message with any emoji")
