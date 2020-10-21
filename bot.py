@@ -79,12 +79,12 @@ class Bot(commands.Bot):
         self.db = await asyncpg.create_pool(config.sql)
 
         query = """CREATE TABLE IF NOT EXISTS
-                   webhooks (guild_id bigint, webhook_id bigint);
+                   webhooks (guild_id BIGINT, webhook_id BIGINT, PRIMARY KEY (guild_id));
                    """
         await self.db.execute(query)
 
         query = """CREATE TABLE IF NOT EXISTS
-                   stickers (owner_id bigint, name text, content_url text);
+                   stickers (owner_id BIGINT, name TEXT, content_url TEXT);
                    """
         await self.db.execute(query)
 
