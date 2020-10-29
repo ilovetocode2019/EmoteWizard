@@ -29,7 +29,7 @@ def get_prefix(bot, message):
     return commands.when_mentioned_or(*prefixes)(bot, message)
 
 
-extensions = ["cogs.meta", "cogs.emojis", "cogs.stickers"]
+extensions = ["cogs.meta", "cogs.emojis", "cogs.stickers", "cogs.embeds"]
 
 
 class Bot(commands.Bot):
