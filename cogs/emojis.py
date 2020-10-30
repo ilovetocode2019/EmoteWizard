@@ -141,7 +141,7 @@ class Emojis(commands.Cog):
         await self.bot.db.execute(query, ctx.guild.id)
         await ctx.send(":white_check_mark: Unbound webhook")
 
-    @commands.command(name="react", descrition="React to a message with any emoji")
+    @commands.command(name="react", descrition="React to a message with any emoji", usage="<emoji> <message>")
     async def react(self, ctx, emoji_name, message = None):
         # Attempt to delete the user's message
         try:
