@@ -189,5 +189,9 @@ class Emojis(commands.Cog):
         await self.bot.wait_for("raw_reaction_add", check=check)
         await message.remove_reaction(emoji, self.bot.user)
 
+    @commands.command(name="emoji", description="Search for an emoji", aliases=["emote"])
+    async def emoji(self, ctx, emoji: EmojiConverter):
+        await ctx.send(emoji)
+
 def setup(bot):
     bot.add_cog(Emojis(bot))
