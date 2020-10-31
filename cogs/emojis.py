@@ -28,16 +28,13 @@ class WebhookConverter(commands.Converter):
         return arg
 
 class EmojiPages(menus.ListPageSource):
-    def __init__(self, data, search, ctx):
-        self.search = search
+    def __init__(self, data):
         self.data = data
-        self.ctx = ctx
-        self.bot = ctx.bot
         super().__init__(data, per_page=10)
 
     async def format_page(self, menu, entries):
         offset = menu.current_page * self.per_page
-        em = discord.Embed(title=f"Results for '{self.search}'", description="", color=discord.Color.blurple())
+        em = discord.Embed(description="", color=discord.Color.blurple())
         for i, v in enumerate(entries, start=offset):
             em.description += f"\n{v[1]} {v[0]}"
         em.set_footer(text=f"{len(self.data)} results | Page {menu.current_page+1}/{int(len(self.data)/10)+1}")
@@ -236,7 +233,7 @@ class Emojis(commands.Cog):
     async def emoji_search(self, ctx, search):
         results = finder(search, [(emoji.name, str(emoji)) for emoji in self.bot.emojis], key=lambda t: t[0], lazy=False)
 
-        pages = menus.MenuPages(source=EmojiPages(results, search, ctx), clear_reactions_after=True)
+        pages = menus.MenuPages(source=EmojiPages(results), clear_reactions_after=True)
         await pages.start(ctx)
 
 def setup(bot):
