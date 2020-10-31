@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord.ext import menus
 
 import re
 from io import BytesIO
@@ -25,6 +26,44 @@ class WebhookConverter(commands.Converter):
         if not type(arg) is int:
             raise commands.errors.BadArgument("That is not a webhook URL or ID")
         return arg
+
+class EmojiPages(menus.ListPageSource):
+    def __init__(self, data, search, ctx):
+        self.search = search
+        self.data = data
+        self.ctx = ctx
+        self.bot = ctx.bot
+        super().__init__(data, per_page=10)
+
+    async def format_page(self, menu, entries):
+        offset = menu.current_page * self.per_page
+        em = discord.Embed(title=f"Results for '{self.search}'", description="", color=discord.Color.blurple())
+        for i, v in enumerate(entries, start=offset):
+            em.description += f"\n{v[1]} {v[0]}"
+        em.set_footer(text=f"{len(self.data)} results | Page {menu.current_page+1}/{int(len(self.data)/10)+1}")
+
+        return em
+
+def finder(text, collection, *, key=None, lazy=True):
+    suggestions = []
+    text = str(text)
+    pat = '.*?'.join(map(re.escape, text))
+    regex = re.compile(pat, flags=re.IGNORECASE)
+    for item in collection:
+        to_search = key(item) if key else item
+        r = regex.search(to_search)
+        if r:
+            suggestions.append((len(r.group()), r.start(), item))
+
+    def sort_key(tup):
+        if key:
+            return tup[0], tup[1], key(tup[2])
+        return tup
+
+    if lazy:
+        return (z for _, _, z in sorted(suggestions, key=sort_key))
+    else:
+        return [z for _, _, z in sorted(suggestions, key=sort_key)]
 
 class Emojis(commands.Cog):
     def __init__(self, bot):
@@ -189,9 +228,16 @@ class Emojis(commands.Cog):
         await self.bot.wait_for("raw_reaction_add", check=check)
         await message.remove_reaction(emoji, self.bot.user)
 
-    @commands.command(name="emoji", description="Search for an emoji", aliases=["emote"])
+    @commands.group(name="emoji", description="Fetch an emoji", aliases=["emote"], invoke_without_command=True)
     async def emoji(self, ctx, emoji: EmojiConverter):
         await ctx.send(emoji)
+
+    @emoji.command(name="search", description="Search for emojis by name", aliases=["find"])
+    async def emoji_search(self, ctx, search):
+        results = finder(search, [(emoji.name, str(emoji)) for emoji in self.bot.emojis], key=lambda t: t[0], lazy=False)
+
+        pages = menus.MenuPages(source=EmojiPages(results, search, ctx), clear_reactions_after=True)
+        await pages.start(ctx)
 
 def setup(bot):
     bot.add_cog(Emojis(bot))
