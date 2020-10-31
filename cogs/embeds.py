@@ -47,7 +47,7 @@ class Embeds(commands.Cog):
                 """
         webhook = await self.bot.db.fetchrow(query, ctx.guild.id)
 
-        em = discord.Embed(description=f"{message.content} \n\n[Jump to message]({message.jump_url})")
+        em = discord.Embed(description=f"{message.content} \n\n[Jump to message]({message.jump_url})", color=discord.Color.blurple())
         em.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
         em.add_field(name="Reply", value=reply)
 

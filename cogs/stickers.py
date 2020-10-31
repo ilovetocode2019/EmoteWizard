@@ -71,7 +71,7 @@ class Stickers(commands.Cog):
                 """
         stickers = await self.bot.db.fetch(query, ctx.author.id)
 
-        em = discord.Embed(title=":page_facing_up: Stickers")
+        em = discord.Embed(title=":page_facing_up: Stickers", color=discord.Color.blurple())
         em.description = "\n".join([f"{sticker['name']}" for sticker in stickers])
         await ctx.send(embed=em)
 
