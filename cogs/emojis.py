@@ -37,7 +37,7 @@ class EmojiPages(menus.ListPageSource):
         em = discord.Embed(description="", color=discord.Color.blurple())
         for i, v in enumerate(entries, start=offset):
             em.description += f"\n{v[1]} {v[0]}"
-        em.set_footer(text=f"{len(self.data)} results | Page {menu.current_page+1}/{int(len(self.data)/10)+1}")
+        em.set_footer(text=f"{len(self.data)} emojis | Page {menu.current_page+1}/{int(len(self.data)/10)+1}")
 
         return em
 
@@ -234,6 +234,13 @@ class Emojis(commands.Cog):
         results = finder(search, [(emoji.name, str(emoji)) for emoji in self.bot.emojis], key=lambda t: t[0], lazy=False)
 
         pages = menus.MenuPages(source=EmojiPages(results), clear_reactions_after=True)
+        await pages.start(ctx)
+
+    @emoji.command(name="list", description="List all emojis you can see")
+    async def emoji_list(self, ctx):
+        emojis = [(emoji.name, str(emoji)) for emoji in self.bot.emojis if ctx.author.id in [member.id for member in emoji.guild.members]]
+
+        pages = menus.MenuPages(source=EmojiPages(sorted(emojis, key=lambda x: x[0].lower())), clear_reactions_after=True)
         await pages.start(ctx)
 
 def setup(bot):

@@ -34,7 +34,10 @@ extensions = ["cogs.meta", "cogs.emojis", "cogs.stickers", "cogs.embeds"]
 
 class Bot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix=get_prefix)
+        intents = discord.Intents.all()
+        intents.presences = False
+
+        super().__init__(command_prefix=get_prefix, intents=intents)
         self.loop.create_task(self.load_extensions())
         self.loop.create_task(self.prepare_bot())
 
