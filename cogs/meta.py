@@ -159,6 +159,15 @@ class Meta(commands.Cog):
 
         await ctx.send("Reset prefixes")
 
+    @commands.command(name="ignore", description="Disable/enable emoji replacing")
+    @commands.is_owner()
+    async def ignore(self, ctx):
+        if self.bot.config.ignore:
+            self.bot.config.ignore = False
+            await ctx.send(":white_check_mark: Enabled emoji replacing")
+        else:
+            self.bot.config.ignore = True
+            await ctx.send(":white_check_mark: Disabled emoji replacing")
 
 def setup(bot):
     bot.add_cog(Meta(bot))

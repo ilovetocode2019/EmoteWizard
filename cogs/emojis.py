@@ -69,12 +69,12 @@ class Emojis(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         context = await self.bot.get_context(message)
-        if message.author.bot or not message.guild or (context.valid and context.command.name == "edit"):
+        if message.author.bot or not message.guild or self.bot.config.ignore or (context.valid and context.command.name == "edit"):
             return
 
-        message_content = self.replace_emojis(message.content)
-        # If message_content is None this means that no emojis were found
-        if not message_content:
+        message_content, found = self.replace_emojis(message.content)
+        # If no emojis were found, ignore
+        if len(found) == 0:
             return
 
         webhook_config = await self.get_webhook_config(message.guild)
@@ -124,8 +124,7 @@ class Emojis(commands.Cog):
                 content = content.replace(name.group(0), str(emoji))
                 found.append(str(emoji))
 
-        if len(found) != 0:
-            return content
+        return content, found
 
     async def get_webhook_config(self, guild):
         select_query = """SELECT *
@@ -176,9 +175,7 @@ class Emojis(commands.Cog):
 
         webhook = await self.bot.fetch_webhook(message.webhook_id)
 
-        message_content = self.replace_emojis(content)
-        if not message_content:
-            message_content = content
+        message_content, found = self.replace_emojis(content)
 
         await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": message_content})
 
