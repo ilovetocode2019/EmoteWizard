@@ -68,25 +68,14 @@ class Emojis(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        context = await self.bot.get_context(message)
+        if message.author.bot or not message.guild or (context.valid and context.command.name == "edit"):
             return
 
-        # Look for 'emojis' in the message
-        emojis = re.finditer("\;[^;]+\;", message.content)
-        message_content = message.content
-
-        # Iter through the found emois name
-        found = []
-        for name in emojis:
-            emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(";", ""))
-            if emoji:
-                message_content = message_content.replace(name.group(0), str(emoji))
-                found.append(str(emoji))
-
-        # If no emojis were found, return
-        if len(found) == 0:
+        message_content = self.replace_emojis(message.content)
+        # If message_content is None this means that no emojis were found
+        if not message_content:
             return
-
 
         webhook_config = await self.get_webhook_config(message.guild)
 
@@ -99,12 +88,44 @@ class Emojis(commands.Cog):
 
             # Prepare the files, send the webhook, and delete the message
             files = [discord.File(BytesIO(await x.read()), filename=x.filename, spoiler=x.is_spoiler()) for x in message.attachments]
-            await webhook.send(content=discord.utils.escape_mentions(message_content), files=files, username=message.author.display_name, avatar_url=message.author.avatar_url)
+            reposted = await webhook.send(content=discord.utils.escape_mentions(message_content), files=files, username=message.author.display_name, avatar_url=message.author.avatar_url, wait=True)
+
+            self.bot.reposted_messages[reposted.id] = message
             await message.delete()
 
         # Otherwise just send the found emojis through the bot account
         else:
             return await message.channel.send(" ".join(found))
+
+    @commands.Cog.listener("on_reaction_add")
+    async def on_reaction_add(self, reaction, user):
+        if reaction.emoji != "\N{CROSS MARK}":
+            return
+
+        original = self.bot.reposted_messages.get(reaction.message.id)
+
+        if not original:
+            return await ctx.send(":x: This message is unable to be deleted", delete_after=5)
+        if original.author.id != user.id:
+            return await ctx.send(":x: You did not post this message", delete_after=5)
+
+        self.bot.reposted_messages.pop(reaction.message.id)
+        await reaction.message.delete()
+
+    def replace_emojis(self, content):
+        # Look for 'emojis' in the message
+        emojis = re.finditer("\;[^;]+\;", content)
+
+        # Iter through the found emois name
+        found = []
+        for name in emojis:
+            emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(";", ""))
+            if emoji:
+                content = content.replace(name.group(0), str(emoji))
+                found.append(str(emoji))
+
+        if len(found) != 0:
+            return content
 
     async def get_webhook_config(self, guild):
         select_query = """SELECT *
@@ -120,6 +141,46 @@ class Emojis(commands.Cog):
             webhook_config = await self.bot.db.fetchrow(select_query, guild.id)
 
         return webhook_config
+
+    @commands.command(name="delete", description="Delete a reposted message")
+    async def delete(self, ctx, message: discord.Message):
+        try:
+            await ctx.message.delete()
+        except discord.HTTPException:
+            pass
+
+        original = self.bot.reposted_messages.get(message.id)
+
+        if not original:
+            return await ctx.send(":x: This message is unable to be deleted", delete_after=5)
+        if original.author.id != ctx.author.id:
+            return await ctx.send(":x: You did not post this message", delete_after=5)
+
+        self.bot.reposted_messages.pop(message.id)
+        await message.delete()
+
+    @commands.command(name="edit", description="Edit a reposted message")
+    async def edit(self, ctx, message: discord.Message, *, content):
+        try:
+            await ctx.message.delete()
+        except discord.HTTPException:
+            pass
+
+        config = await self.get_webhook_config(ctx.guild)
+        original = self.bot.reposted_messages.get(message.id)
+
+        if not original:
+            return await ctx.send(":x: This message is unable to be edited", delete_after=5)
+        if original.author.id != ctx.author.id:
+            return await ctx.send(":x: You did not post this message", delete_after=5)
+
+        webhook = await self.bot.fetch_webhook(message.webhook_id)
+
+        message_content = self.replace_emojis(content)
+        if not message_content:
+            message_content = content
+
+        await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": message_content})
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)

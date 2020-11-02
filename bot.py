@@ -36,10 +36,12 @@ class Bot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
         intents.presences = False
-
         super().__init__(command_prefix=get_prefix, intents=intents)
+
         self.loop.create_task(self.load_extensions())
         self.loop.create_task(self.prepare_bot())
+
+        self.reposted_messages = {}
 
         self.config = config
         if not hasattr(config, "default_prefix"):
