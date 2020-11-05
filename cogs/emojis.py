@@ -119,11 +119,6 @@ class Emojis(commands.Cog):
 
         original = self.bot.reposted_messages.get(reaction.message.id)
 
-        if not original:
-            return await ctx.send(":x: This message is unable to be deleted", delete_after=5)
-        if original.author.id != user.id:
-            return await ctx.send(":x: You did not post this message", delete_after=5)
-
         self.bot.reposted_messages.pop(reaction.message.id)
         await reaction.message.delete()
 
