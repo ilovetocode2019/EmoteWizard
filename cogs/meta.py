@@ -5,9 +5,10 @@ import traceback
 import sys
 import json
 import asyncio
+import datetime
+import humanize
 
 from .utils import checks
-
 
 class HelpCommand(commands.MinimalHelpCommand):
     def get_command_signature(self, command):
@@ -58,6 +59,15 @@ class Meta(commands.Cog):
         perms.manage_messages = True
         invite = discord.utils.oauth_url(self.bot.user.id, permissions=perms)
         await ctx.send(f"<{invite}>")
+
+    @commands.command(name="ping", description="Check my latency")
+    async def ping(self, ctx):
+        await ctx.send(f"My latency is {int(self.bot.latency*1000)}ms")
+
+    @commands.command(name="uptime", description="Check my uptime")
+    async def uptime(self, ctx):
+        delta = datetime.datetime.utcnow()-self.bot.startup_time
+        await ctx.send(f"I started up {humanize.naturaldelta(delta)} ago")
 
     @commands.group(
         description="View your prefixes",

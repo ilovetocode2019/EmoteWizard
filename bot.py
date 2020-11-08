@@ -6,6 +6,7 @@ import aiohttp
 import asyncpg
 import os
 import json
+import datetime
 
 import config
 from cogs.utils.context import Context
@@ -41,6 +42,7 @@ class Bot(commands.Bot):
         self.loop.create_task(self.load_extensions())
         self.loop.create_task(self.prepare_bot())
 
+        self.startup_time = datetime.datetime.utcnow()
         self.reposted_messages = {}
 
         self.config = config
