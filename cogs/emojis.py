@@ -225,7 +225,7 @@ class Emojis(commands.Cog):
     @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
     async def webhook_create(self, ctx):
-        webhook = await ctx.channel.create_webhook(name="Nitro Hook")
+        webhook = await ctx.channel.create_webhook(name="Stickers Hook")
 
         query = """INSERT INTO webhooks (guild_id, webhook_id)
                    VALUES ($1, $2)
