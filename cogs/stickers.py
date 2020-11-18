@@ -63,17 +63,5 @@ class Stickers(commands.Cog):
             return await ctx.send(":x: That is not a sticker or you do not own it")
         await ctx.send(":white_check_mark: Deleted your sticker")
 
-    @sticker.command(name="list", description="View your stickers")
-    async def sticker_list(self, ctx):
-        query = """SELECT *
-                   FROM stickers
-                   WHERE stickers.owner_id=$1;
-                """
-        stickers = await self.bot.db.fetch(query, ctx.author.id)
-
-        em = discord.Embed(title=":page_facing_up: Stickers", color=discord.Color.blurple())
-        em.description = "\n".join([f"{sticker['name']}" for sticker in stickers])
-        await ctx.send(embed=em)
-
 def setup(bot):
     bot.add_cog(Stickers(bot))
