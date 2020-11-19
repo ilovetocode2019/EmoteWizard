@@ -30,8 +30,7 @@ def get_prefix(bot, message):
     return commands.when_mentioned_or(*prefixes)(bot, message)
 
 
-extensions = ["cogs.meta", "cogs.emojis", "cogs.stickers", "cogs.embeds"]
-
+extensions = ["cogs.meta", "cogs.emojis", "cogs.stickers", "cogs.replies"]
 
 class Bot(commands.Bot):
     def __init__(self):
@@ -98,6 +97,7 @@ class Bot(commands.Bot):
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
         self.stickers_channel = self.get_channel(config.stickers_channel)
+        self.stickers_guild = self.get_guild(config.stickers_guild)
 
     def run(self):
         super().run(config.token)
