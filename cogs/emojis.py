@@ -187,7 +187,7 @@ class Emojis(commands.Cog):
 
         message_content, found = self.replace_emojis(content)
 
-        await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": message_content})
+        await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": discord.utils.escape_markdown(message_content)})
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)

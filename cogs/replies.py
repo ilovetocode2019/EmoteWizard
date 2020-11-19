@@ -41,7 +41,7 @@ class Replies(commands.Cog):
         else:
             emoji = discord.utils.get(self.bot.stickers_guild.emojis, name=f"user_{message.author.id}")
 
-        content = f"> {emoji} **{message.author.display_name}** \n> {message.content} \n> [Jump to message](<{message.jump_url}>) \n{reply}"
+        content = f"> {emoji} **{message.author.display_name}** \n> {message.content} \n> [Jump to message](<{message.jump_url}>) \n{discord.utils.escape_mentions(reply)}"
 
         if ctx.guild.me.guild_permissions.manage_messages and webhook and webhook["webhook_id"]:
             await ctx.message.delete()
