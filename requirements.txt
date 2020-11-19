@@ -3,3 +3,4 @@ git+https://github.com/Rapptz/discord-ext-menus
 jishaku
 asyncpg
 humanize
+Pillow
