@@ -45,7 +45,11 @@ class Replies(commands.Cog):
 
         if ctx.guild.me.guild_permissions.manage_messages and webhook and webhook["webhook_id"]:
             await ctx.message.delete()
+
             webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
+            if webhook.channel_id != ctx.channel.id:
+                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
+
             await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url)
         else:
             await ctx.send(content=content)
@@ -64,7 +68,11 @@ class Replies(commands.Cog):
 
         if ctx.guild.me.guild_permissions.manage_messages and webhook and webhook["webhook_id"]:
             await ctx.message.delete()
+
             webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
+            if webhook.channel_id != ctx.channel.id:
+                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
+
             await webhook.send(embed=em, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url)
         else:
             await ctx.send(embed=em)
