@@ -43,7 +43,7 @@ class Replies(commands.Cog):
 
         content = f"> {emoji} **{message.author.display_name}** \n> {message.content} \n> [Jump to message](<{message.jump_url}>) \n{discord.utils.escape_mentions(reply)}"
 
-        if ctx.guild.me.guild_permissions.manage_messages and webhook and webhook["webhook_id"]:
+        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
             await ctx.message.delete()
 
             webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
@@ -66,7 +66,7 @@ class Replies(commands.Cog):
         em.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
         em.add_field(name="Reply", value=reply)
 
-        if ctx.guild.me.guild_permissions.manage_messages and webhook and webhook["webhook_id"]:
+        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
             await ctx.message.delete()
 
             webhook = await self.bot.fetch_webhook(webhook["webhook_id"])

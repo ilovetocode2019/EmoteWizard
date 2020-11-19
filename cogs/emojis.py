@@ -95,7 +95,7 @@ class Emojis(commands.Cog):
         webhook_config = await self.get_webhook_config(message.guild)
 
         # If a webhook config and the bot has permissions to delete messages, continue
-        if message.guild.me.guild_permissions.manage_messages and webhook_config["webhook_id"]:
+        if message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks and webhook_config["webhook_id"]:
             # Fetch the webhook and if make an HTTP request to update the channel if needed
             webhook = await self.bot.fetch_webhook(webhook_config["webhook_id"])
             if webhook.channel_id != message.channel.id:
