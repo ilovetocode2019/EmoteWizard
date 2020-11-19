@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 
+import io
+
 class Stickers(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -36,7 +38,12 @@ class Stickers(commands.Cog):
     async def sticker_create(self, ctx, name):
         if len(ctx.message.attachments) == 0:
             return await ctx.send(":x: You must attach the sticker to the message")
-        url = ctx.message.attachments[0].url
+
+        attachment = ctx.message.attachments[0]
+        async with self.bot.session.get(attachment.url) as resp:
+            file = io.BytesIO(await resp.read())
+        result = await self.bot.stickers_channel.send(file=discord.File(file, filename=attachment.filename))
+        url = result.attachments[0].url
 
         query = """SELECT COUNT(*)
                    FROM stickers
