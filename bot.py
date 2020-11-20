@@ -82,17 +82,30 @@ class Bot(commands.Bot):
 
     async def prepare_bot(self):
         self.session = aiohttp.ClientSession()
-        self.db = await asyncpg.create_pool(config.sql)
+
+        async def init(conn):
+            await conn.set_type_codec(
+                "jsonb",
+                schema="pg_catalog",
+                encoder=json.dumps,
+                decoder=json.loads,
+                format="text",
+            )
+        self.db = await asyncpg.create_pool(config.sql, init=init)
 
         query = """CREATE TABLE IF NOT EXISTS
                    webhooks (guild_id BIGINT, webhook_id BIGINT, PRIMARY KEY (guild_id));
+
+                   CREATE TABLE IF NOT EXISTS
+                   stickers (owner_id BIGINT, name TEXT, content_url TEXT);
+
+                   CREATE TABLE IF NOT EXISTS
+                   avatar_emojis (user_id BIGINT, emoji_id BIGINT, avatar_url TEXT, last_used TIMESTAMP DEFAULT (now() at time zone 'utc'), PRIMARY KEY (user_id))
                    """
         await self.db.execute(query)
 
-        query = """CREATE TABLE IF NOT EXISTS
-                   stickers (owner_id BIGINT, name TEXT, content_url TEXT);
-                   """
-        await self.db.execute(query)
+        avatar_emojis = await self.db.fetch("SELECT * FROM avatar_emojis;")
+        self.avatar_emojis = {emoji["user_id"]: dict(emoji) for emoji in avatar_emojis}
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
