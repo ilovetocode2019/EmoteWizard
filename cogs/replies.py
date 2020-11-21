@@ -114,7 +114,7 @@ class Replies(commands.Cog):
 
             await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention))
         else:
-            await ctx.send(content=content, allowed_mentions=discord.AllowedMentions(users=mention))
+            await ctx.send(":x: I am missing the permissions I need to send a reply", delete_after=5)
 
     @reply.command(name="embed", description="Reply to a message using an embed")
     async def reply_embed(self, ctx, message: discord.Message, *, reply):
