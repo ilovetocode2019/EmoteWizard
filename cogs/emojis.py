@@ -189,10 +189,13 @@ class Emojis(commands.Cog):
 
         if isinstance(original, Reply):
             original.reply = content
-            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": str(original)})
+            allowed_mentions = {"parse": ["users"] if original.mention else []}
+            data = {"content": str(original), "allowed_mentions": allowed_mentions}
+            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
         else:
             message_content, found = self.replace_emojis(content)
-            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": discord.utils.escape_markdown(message_content)})
+            data = {"content": discord.utils.escape_markdown(message_content)}
+            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)
