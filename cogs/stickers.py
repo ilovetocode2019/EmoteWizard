@@ -23,7 +23,7 @@ class Stickers(commands.Cog):
                 """
         webhook = await self.bot.db.fetchrow(query, ctx.guild.id)
 
-        if ctx.guild.me.guild_permissions.manage_messages and webhook and webhook["webhook_id"]:
+        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
             webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
             if webhook.channel_id != ctx.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
