@@ -11,6 +11,14 @@ class Replies(commands.Cog):
 
     @commands.group(name="reply", description="Reply to a message", invoke_without_command=True)
     async def reply(self, ctx, message: discord.Message, *, reply):
+        mention = True
+        if reply.startswith("--no-mention"):
+            mention = False
+            reply = reply[len("--no-mention"):]
+        elif reply.startswith("-n"):
+            mention = False
+            reply = reply[len("-n"):]
+
         # Fetch webhook and emoji
         query = """SELECT *
                    FROM webhooks
@@ -92,7 +100,7 @@ class Replies(commands.Cog):
             self.bot.avatar_emojis[message.author.id]["last_used"] = datetime.datetime.utcnow()
 
         # Prepare content
-        content = f"> {emoji} **{message.author.display_name}** \n> {message.content} \n> [Jump to message](<{message.jump_url}>) \n{discord.utils.escape_mentions(reply)}"
+        content = f"> {emoji} **{message.author.mention}** \n> {message.content} \n> [Jump to message](<{message.jump_url}>) \n{discord.utils.escape_mentions(reply)}"
 
         # Send message
         if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
@@ -104,9 +112,9 @@ class Replies(commands.Cog):
             if webhook.channel_id != ctx.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
 
-            await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url)
+            await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention))
         else:
-            await ctx.send(content=content)
+            await ctx.send(content=content, allowed_mentions=discord.AllowedMentions(users=mention))
 
     @reply.command(name="embed", description="Reply to a message using an embed")
     async def reply_embed(self, ctx, message: discord.Message, *, reply):
