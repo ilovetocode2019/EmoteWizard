@@ -14,7 +14,7 @@ class Reply:
         self.mention = mention
 
     def __str__(self):
-        return f"> {self.emoji} **{self.message.author.mention}** \n> {self.message.content} \n> [Jump to message](<{self.message.jump_url}>) \n{discord.utils.escape_mentions(self.reply)}"
+        return f"> {self.emoji} {self.message.author.mention}{f'<:bottag:779737977856720906>' if self.message.author.bot else None} \n> {self.message.content or f'Jump to view embed(s) <:imageicon:779737947121123349>'} \n> [Jump to message](<{self.message.jump_url}>) \n{discord.utils.escape_mentions(self.reply)}"
 
 class Replies(commands.Cog):
     def __init__(self, bot):
