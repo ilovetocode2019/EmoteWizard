@@ -192,10 +192,12 @@ class Emojis(commands.Cog):
             allowed_mentions = {"parse": ["users"] if original.mention else []}
             data = {"content": str(original), "allowed_mentions": allowed_mentions}
             await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
-        else:
+        elif isinstance(original, discord.Message):
             message_content, found = self.replace_emojis(content)
             data = {"content": discord.utils.escape_markdown(message_content)}
             await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
+        else:
+            await ctx.send(":x: This message is unable to be edited")
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)
