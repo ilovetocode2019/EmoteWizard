@@ -121,6 +121,12 @@ class Emojis(commands.Cog):
 
         original = self.bot.reposted_messages.get(reaction.message.id)
 
+        if not original:
+            return
+        if original.author.id != ctx.author.id:
+            return
+
+
         self.bot.reposted_messages.pop(reaction.message.id)
         await reaction.message.delete()
 
