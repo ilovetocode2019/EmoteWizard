@@ -5,6 +5,8 @@ from discord.ext import menus
 import re
 from io import BytesIO
 
+from .replies import Reply
+
 class EmojiConverter(commands.Converter):
     async def convert(self, ctx, arg):
         emoji = discord.utils.get(ctx.bot.emojis, name=arg)
@@ -185,9 +187,12 @@ class Emojis(commands.Cog):
 
         webhook = await self.bot.fetch_webhook(message.webhook_id)
 
-        message_content, found = self.replace_emojis(content)
-
-        await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": discord.utils.escape_markdown(message_content)})
+        if isinstance(original, Reply):
+            original.reply = content
+            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": str(original)})
+        else:
+            message_content, found = self.replace_emojis(content)
+            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json={"content": discord.utils.escape_markdown(message_content)})
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)

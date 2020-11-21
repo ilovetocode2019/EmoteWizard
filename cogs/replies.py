@@ -5,6 +5,17 @@ import datetime
 import io
 from PIL import Image, ImageDraw, ImageOps
 
+class Reply:
+    def __init__(self, message, reply, author, emoji, mention):
+        self.message = message
+        self.reply = reply
+        self.author = author
+        self.emoji = emoji
+        self.mention = mention
+
+    def __str__(self):
+        return f"> {self.emoji} **{self.message.author.mention}** \n> {self.message.content} \n> [Jump to message](<{self.message.jump_url}>) \n{discord.utils.escape_mentions(self.reply)}"
+
 class Replies(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -100,7 +111,8 @@ class Replies(commands.Cog):
             self.bot.avatar_emojis[message.author.id]["last_used"] = datetime.datetime.utcnow()
 
         # Prepare content
-        content = f"> {emoji} **{message.author.mention}** \n> {message.content} \n> [Jump to message](<{message.jump_url}>) \n{discord.utils.escape_mentions(reply)}"
+        reply = Reply(message, reply, ctx.author, emoji, mention)
+        content = str(reply)
 
         # Send message
         if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
@@ -112,7 +124,8 @@ class Replies(commands.Cog):
             if webhook.channel_id != ctx.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
 
-            await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention))
+            message = await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention), wait=True)
+            self.bot.reposted_messages[message.id] = reply
         else:
             await ctx.send(":x: I am missing the permissions I need to send a reply", delete_after=5)
 
