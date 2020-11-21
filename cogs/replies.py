@@ -46,7 +46,7 @@ class Replies(commands.Cog):
                 emoji = self.bot.get_emoji(emoji["emoji_id"])
                 await emoji.delete()
 
-            # If the emoji slots are full, 
+            # If the emoji slots are full, remove the oldest used one
             if len(self.bot.stickers_guild.emojis) >= 50:
                 emojis = self.bot.avatar_emojis.values()
                 emojis = sorted(emojis, key = lambda x: x["last_used"])
@@ -65,7 +65,7 @@ class Replies(commands.Cog):
                         self.bot.avatar_emojis.pop(emoji["user_id"])
 
             # Fetch the avatar
-            async with self.bot.session.get(str(message.author.avatar_url)) as resp:
+            async with self.bot.session.get(str(message.author.avatar_url_as(format="png"))) as resp:
                 avatar = io.BytesIO(await resp.read())
                 avatar = Image.open(avatar)
 
@@ -79,7 +79,7 @@ class Replies(commands.Cog):
 
             # Save to file
             avatar = io.BytesIO()
-            output.save(avatar, "PNG", trancparency=(0, 0, 0))
+            output.save(avatar, "PNG")
             avatar.seek(0)
 
             # Create the new emoji
