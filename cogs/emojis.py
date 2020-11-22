@@ -116,19 +116,37 @@ class Emojis(commands.Cog):
 
     @commands.Cog.listener("on_reaction_add")
     async def on_reaction_add(self, reaction, user):
-        if reaction.emoji != "\N{CROSS MARK}":
-            return
-
         original = self.bot.reposted_messages.get(reaction.message.id)
 
         if not original:
             return
-        if original.author.id != ctx.author.id:
+        if original.author.id != user.id:
             return
 
+        if reaction.emoji == "\N{CROSS MARK}":
+            self.bot.reposted_messages.pop(reaction.message.id)
+            await reaction.message.delete()
 
-        self.bot.reposted_messages.pop(reaction.message.id)
-        await reaction.message.delete()
+        elif reaction.emoji == "\N{MEMO}" or reaction.emoji == "\N{PENCIL}\N{VARIATION SELECTOR-16}":
+            await reaction.remove(user)
+
+            await user.send("What would you like to edit your message to?")
+            message = await self.bot.wait_for("message", check=lambda message: message.channel.id == user.dm_channel.id and message.author.id == user.id)
+            content = message.content
+
+            webhook = await self.bot.fetch_webhook(reaction.message.webhook_id)
+
+            if isinstance(original, Reply):
+                original.reply = content
+                allowed_mentions = {"parse": ["users"] if original.mention else []}
+                data = {"content": str(original), "allowed_mentions": allowed_mentions}
+                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{reaction.message.id}"), json=data)
+            elif isinstance(original, discord.Message):
+                message_content, found = self.replace_emojis(content)
+                data = {"content": discord.utils.escape_markdown(message_content)}
+                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{reaction.message.id}"), json=data)
+
+            await message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
 
     def replace_emojis(self, content):
         # Look for 'emojis' in the message
