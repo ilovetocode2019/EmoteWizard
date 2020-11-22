@@ -51,6 +51,14 @@ class Meta(commands.Cog):
 
         await ctx.send(f"```py\n{error}\n```")
 
+        if isinstance(error, commands.CommandInvokeError):
+            em = discord.Embed(title=":warning: Error", description="", color=discord.Color.gold(), timestamp=datetime.datetime.utcnow())
+            em.description += f"\nCommand: `{ctx.command}`"
+            em.description += f"\nLink: [Jump]({ctx.message.jump_url})"
+            em.description += f"\n\n```py\n{error}```\n"
+
+            await self.bot.console.send(embed=em)
+
     @commands.command(name="invite", description="Get an invite link")
     async def invite(self, ctx):
         perms = discord.Permissions.none()

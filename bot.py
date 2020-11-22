@@ -109,6 +109,7 @@ class Bot(commands.Bot):
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
+        self.console = bot.get_channel(config.console)
         self.stickers_channel = self.get_channel(config.stickers_channel)
         self.stickers_guild = self.get_guild(config.stickers_guild)
 
