@@ -18,7 +18,7 @@ class Reply:
         reply = f"> [Jump to message](<{self.message.jump_url}>) \n{discord.utils.escape_mentions(self.reply)}"
 
         if self.message.content:
-            content = "\n".join([f"> {line}" for line in self.message.content.split("\n")])
+            content = "\n".join([f"> {discord.utils.escape_mentions(line)}" for line in self.message.content.split("\n")])
         else:
             content = "> Jump to view embed(s) <:imageicon:779737947121123349>"
 
