@@ -221,7 +221,7 @@ class Emojis(commands.Cog):
             data = {"content": discord.utils.escape_markdown(message_content)}
             await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
         else:
-            await ctx.send(":x: This message is unable to be edited")
+            await ctx.send(":x: This message is unable to be edited", delete_after=5)
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)
