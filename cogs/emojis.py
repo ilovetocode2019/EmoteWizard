@@ -86,7 +86,7 @@ class Emojis(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         context = await self.bot.get_context(message)
-        if message.author.bot or not message.guild or self.bot.config.ignore or (context.valid and context.command.name == "edit"):
+        if (message.author.bot or not message.guild or self.bot.config.ignore) or (context.valid):
             return
 
         message_content, found = self.replace_emojis(message.content)
