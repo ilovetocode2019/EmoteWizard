@@ -151,7 +151,7 @@ class Emojis(commands.Cog):
     def replace_emojis(self, content):
         # Look for 'emojis' in the message
         emojis = re.finditer("\;[^;]+\;", content)
-        possible_emojis = re.finditer("\:[^:]\:", content)
+        possible_emojis = re.finditer("\:\w+\:", content)
 
         # Iter through the found emois name
         found = []
