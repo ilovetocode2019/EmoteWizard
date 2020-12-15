@@ -149,6 +149,8 @@ class Emojis(commands.Cog):
             await message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
 
     def replace_emojis(self, content):
+        replaced = content
+
         # Look for 'emojis' in the message
         emojis = re.finditer("\;[^;]+\;", content)
         possible_emojis = re.finditer("\:\w+\:", content)
@@ -158,18 +160,18 @@ class Emojis(commands.Cog):
         for name in emojis:
             emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(";", ""))
             if emoji:
-                content = content.replace(name.group(0), str(emoji))
+                replaced = replaced.replace(name.group(0), str(emoji))
                 found.append(str(emoji))
 
         for name in possible_emojis:
             emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(":", ""))
             span = name.span(0)
-            full_emoji = re.search(".*<a?", content[:span[0]]) and re.search("\d+>", content[span[1]+1:])
+            full_emoji = re.search(".*<a?", content[:span[0]]) and re.search("\d+>.*", content[span[1]+1:])
             if emoji and not full_emoji:
-                content = content.replace(name.group(0), str(emoji))
+                replaced = replaced.replace(name.group(0), str(emoji))
                 found.append(str(emoji))
 
-        return content, found
+        return replaced, found
 
     async def get_webhook_config(self, guild):
         select_query = """SELECT *
