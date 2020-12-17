@@ -153,21 +153,24 @@ class Emojis(commands.Cog):
 
         # Look for 'emojis' in the message
         emojis = re.finditer("\;[^;]+\;", content)
-        possible_emojis = re.finditer("\:[^\:]:", content)
+        possible_emojis = re.finditer("\:\w+:", content)
 
         # Iter through the found emois name
         found = []
+
+        # Replace emojis using ;emoji;
         for name in emojis:
             emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(";", ""))
-            if emoji:
+            if emoji and str(emoji) not in found:
                 replaced = replaced.replace(name.group(0), str(emoji))
                 found.append(str(emoji))
 
+        # Replace emojis using :emoji:
         for name in possible_emojis:
             emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(":", ""))
             span = name.span(0)
             full_emoji = re.search(".*<a?", content[:span[0]]) and re.search("\d+>.*", content[span[1]+1:])
-            if emoji and not full_emoji:
+            if emoji and str(emoji) not in found and not full_emoji:
                 replaced = replaced.replace(name.group(0), str(emoji))
                 found.append(str(emoji))
 
