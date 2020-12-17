@@ -153,7 +153,7 @@ class Emojis(commands.Cog):
 
         # Look for 'emojis' in the message
         emojis = re.finditer("\;[^;]+\;", content)
-        possible_emojis = re.finditer("\:[^:]:", content)
+        possible_emojis = re.finditer("\:[^\:]:", content)
 
         # Iter through the found emois name
         found = []
