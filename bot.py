@@ -9,7 +9,7 @@ import json
 import datetime
 
 import config
-from cogs.utils.context import Context
+from cogs.utils import context, cache
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +31,40 @@ def get_prefix(bot, message):
 
 
 extensions = ["cogs.meta", "cogs.admin", "cogs.replies", "cogs.emojis", "cogs.stickers"]
+
+class WebhookConfig:
+    @classmethod
+    def from_record(cls, record, bot):
+        self = cls()
+        self.bot = bot
+
+        self.guild_id = record["guild_id"]
+        self.webhook_id = record["webhook_id"]
+
+        return self
+
+    @property
+    def guild(self):
+        return self.bot.get_guild(self.guild_id)
+
+    async def webhook(self):
+        if not self.webhook_id:
+            return None
+
+        try:
+            return await self.bot.fetch_webhook(self.webhook_id)
+        except discord.NotFound:
+            return None
+
+    async def set_webhook(self, webhook_id):
+        self.webhook_id = webhook_id
+
+        query = """INSERT INTO webhooks (guild_id, webhook_id)
+                   VALUES ($1, $2)
+                   ON CONFLICT (guild_id) DO UPDATE
+                   SET webhook_id=$2;
+                """
+        await self.bot.db.execute(query, self.guild_id, self.webhook_id)
 
 class Bot(commands.Bot):
     def __init__(self):
@@ -57,7 +91,7 @@ class Bot(commands.Bot):
             self._guild_prefixes = json.load(f)
 
     async def get_context(self, message, *, cls=None):
-        return await super().get_context(message, cls=cls or Context)
+        return await super().get_context(message, cls=cls or context.Context)
 
     def guild_prefix(self, guild):
         """Get the default prefix for a guild"""
@@ -72,6 +106,21 @@ class Bot(commands.Bot):
             return [self.config.default_prefix]
 
         return self._guild_prefixes[str(guild.id)]
+
+    @cache.cache()
+    async def get_webhook_config(self, guild):
+        query = """SELECT *
+                   FROM webhooks
+                   WHERE webhooks.guild_id=$1;
+                """
+        record = await self.db.fetchrow(query, guild.id)
+
+        if not record:
+            record =  {
+                "guild_id": guild.id,
+                "webhook_id": None
+            }
+        return WebhookConfig.from_record(dict(record), self)
 
     async def load_extensions(self):
         self.load_extension("jishaku")
@@ -94,7 +143,7 @@ class Bot(commands.Bot):
         self.db = await asyncpg.create_pool(config.sql, init=init)
 
         query = """CREATE TABLE IF NOT EXISTS
-                   webhooks (guild_id BIGINT, webhook_id BIGINT, PRIMARY KEY (guild_id));
+                   webhooks (guild_id BIGINT PRIMARY KEY, webhook_id BIGINT);
 
                    CREATE TABLE IF NOT EXISTS
                    stickers (owner_id BIGINT, name TEXT, content_url TEXT);

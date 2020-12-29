@@ -39,13 +39,10 @@ class Replies(commands.Cog):
             mention = False
             reply = reply[len("-n"):]
 
-        # Fetch webhook and emoji
-        query = """SELECT *
-                   FROM webhooks
-                   WHERE webhooks.guild_id=$1;
-                """
-        webhook = await self.bot.db.fetchrow(query, ctx.guild.id)
+        config = await self.bot.get_webhook_config(ctx.guild)
+        webhook = await config.webhook()
 
+        # Fetch emoji
         emoji = self.bot.avatar_emojis.get(message.author.id)
 
         # If the emoji does not exist or the emoji is an outdated avatar, make a new emoji
@@ -105,10 +102,11 @@ class Replies(commands.Cog):
         content = str(reply)
 
         # Send message
-        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
-            await ctx.message.delete()
+        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks:
+            if not webhook:
+                return await ctx.send(":x: No webhook is set")
 
-            webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
+            await ctx.message.delete()
 
             # Update webhook if needed
             if webhook.channel_id != ctx.channel.id:
@@ -117,30 +115,7 @@ class Replies(commands.Cog):
             message = await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention), wait=True)
             self.bot.reposted_messages[message.id] = reply
         else:
-            await ctx.send(":x: I am missing the permissions I need to send a reply", delete_after=5)
-
-    @reply.command(name="embed", description="Reply to a message using an embed")
-    async def reply_embed(self, ctx, message: discord.Message, *, reply):
-        query = """SELECT *
-                   FROM webhooks
-                   WHERE webhooks.guild_id=$1;
-                """
-        webhook = await self.bot.db.fetchrow(query, ctx.guild.id)
-
-        em = discord.Embed(description=f"{message.content} \n\n[Jump to message]({message.jump_url})", color=discord.Color.blurple())
-        em.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
-        em.add_field(name="Reply", value=reply)
-
-        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
-            await ctx.message.delete()
-
-            webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
-            if webhook.channel_id != ctx.channel.id:
-                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
-
-            await webhook.send(embed=em, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url)
-        else:
-            await ctx.send(embed=em)
+            await ctx.send(":x: I am missing permissions I need to send a reply", delete_after=5)
 
     async def create_avatar_emoji(self, user):
         # Fetch the avatar

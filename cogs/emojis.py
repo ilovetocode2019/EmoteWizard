@@ -6,6 +6,28 @@ import re
 from io import BytesIO
 
 from .replies import Reply
+from .utils.menus import Confirm
+
+def finder(text, collection, *, key=None, lazy=True):
+    suggestions = []
+    text = str(text)
+    pat = ".*?".join(map(re.escape, text))
+    regex = re.compile(pat, flags=re.IGNORECASE)
+    for item in collection:
+        to_search = key(item) if key else item
+        r = regex.search(to_search)
+        if r:
+            suggestions.append((len(r.group()), r.start(), item))
+
+    def sort_key(tup):
+        if key:
+            return tup[0], tup[1], key(tup[2])
+        return tup
+
+    if lazy:
+        return (z for _, _, z in sorted(suggestions, key=sort_key))
+    else:
+        return [z for _, _, z in sorted(suggestions, key=sort_key)]
 
 class EmojiConverter(commands.Converter):
     async def convert(self, ctx, arg):
@@ -43,27 +65,6 @@ class EmojiPages(menus.ListPageSource):
 
         return em
 
-def finder(text, collection, *, key=None, lazy=True):
-    suggestions = []
-    text = str(text)
-    pat = ".*?".join(map(re.escape, text))
-    regex = re.compile(pat, flags=re.IGNORECASE)
-    for item in collection:
-        to_search = key(item) if key else item
-        r = regex.search(to_search)
-        if r:
-            suggestions.append((len(r.group()), r.start(), item))
-
-    def sort_key(tup):
-        if key:
-            return tup[0], tup[1], key(tup[2])
-        return tup
-
-    if lazy:
-        return (z for _, _, z in sorted(suggestions, key=sort_key))
-    else:
-        return [z for _, _, z in sorted(suggestions, key=sort_key)]
-
 class Emojis(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -79,12 +80,12 @@ class Emojis(commands.Cog):
         if len(found) == 0:
             return
 
-        webhook_config = await self.get_webhook_config(message.guild)
+        config = await self.bot.get_webhook_config(message.guild)
+        webhook = await config.webhook()
 
         # If a webhook config and the bot has permissions to delete messages, continue
-        if message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks and webhook_config["webhook_id"]:
-            # Fetch the webhook and if make an HTTP request to update the channel if needed
-            webhook = await self.bot.fetch_webhook(webhook_config["webhook_id"])
+        if message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks and webhook:
+            # make an HTTP request to update the channel if needed
             if webhook.channel_id != message.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": message.channel.id})
 
@@ -161,21 +162,6 @@ class Emojis(commands.Cog):
 
         return replaced, found
 
-    async def get_webhook_config(self, guild):
-        select_query = """SELECT *
-                    FROM webhooks
-                    WHERE webhooks.guild_id=$1;
-                """
-        webhook_config = await self.bot.db.fetchrow(select_query, guild.id)
-
-        if not webhook_config:
-            insert_query = """INSERT INTO webhooks (guild_id, webhook_id)
-                              VALUES ($1, $2);"""
-            await self.bot.db.execute(insert_query, guild.id, None)
-            webhook_config = await self.bot.db.fetchrow(select_query, guild.id)
-
-        return webhook_config
-
     @commands.command(name="edit", description="Edit a reposted message")
     async def edit(self, ctx, message: discord.Message, *, content):
         try:
@@ -183,15 +169,14 @@ class Emojis(commands.Cog):
         except discord.HTTPException:
             pass
 
-        config = await self.get_webhook_config(ctx.guild)
+        config = await self.bot.get_webhook_config(ctx.guild)
+        webhook = await config.webhook()
         original = self.bot.reposted_messages.get(message.id)
 
-        if not original:
+        if not original or not webhook:
             return await ctx.send(":x: This message is unable to be edited", delete_after=5)
         if original.author.id != ctx.author.id:
             return await ctx.send(":x: You did not post this message", delete_after=5)
-
-        webhook = await self.bot.fetch_webhook(message.webhook_id)
 
         if isinstance(original, Reply):
             original.reply = content
@@ -226,12 +211,12 @@ class Emojis(commands.Cog):
     @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
     async def webhook(self, ctx):
-        webhook_config = await self.get_webhook_config(ctx.guild)
+        config = await self.bot.get_webhook_config(ctx.guild)
+        webhook = await config.webhook()
 
-        if not webhook_config["webhook_id"]:
-            return await ctx.send(":x: No webhook set")
+        if not webhook:
+            return await ctx.send("No webhook is set")
 
-        webhook = await self.bot.fetch_webhook(webhook_config["webhook_id"])
         await ctx.send(f"The webhook set is `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="set", description="Set the webhook")
@@ -242,40 +227,37 @@ class Emojis(commands.Cog):
             webhook = await self.bot.fetch_webhook(webhook)
         except discord.NotFound:
             return await ctx.send(":x: That webhook does not exist")
-
         if webhook.guild_id != ctx.guild.id:
             return await ctx.send(":x: That webhook does not exist")
 
-        query = """INSERT INTO webhooks (guild_id, webhook_id)
-                   VALUES ($1, $2)
-                   ON CONFLICT (guild_id)
-                   DO UPDATE SET webhook_id=$2;
-                """
-        await self.bot.db.execute(query, ctx.guild.id, webhook.id)
-        await ctx.send(":white_check_mark: Webhook set")
+        config = await self.bot.get_webhook_config(ctx.guild)
+        if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
+            return await ctx.send("Aborting")
+
+        await config.set_webhook(webhook.id)
+        await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="create", description="Creates a webhook for the bot")
     @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
     async def webhook_create(self, ctx):
-        webhook = await ctx.channel.create_webhook(name="Stickers Hook")
+        config = await self.bot.get_webhook_config(ctx.guild)
+        if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
+            return await ctx.send("Aborting")
 
-        query = """INSERT INTO webhooks (guild_id, webhook_id)
-                   VALUES ($1, $2)
-                   ON CONFLICT (guild_id)
-                   DO UPDATE SET webhook_id=$2;
-                """
-        await self.bot.db.execute(query, ctx.guild.id, webhook.id)
-        await ctx.send(":white_check_mark: Webhook ceated")
+        webhook = await ctx.channel.create_webhook(name="Stickers Hook")
+        await config.set_webhook(webhook.id)
+        await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="unbind", description="Unbund the webhook")
     @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
     async def webhook_unbind(self, ctx):
-        query = """DELETE FROM webhooks
-                   WHERE webhooks.guild_id=$1;
-                """
-        await self.bot.db.execute(query, ctx.guild.id)
+        config = await self.bot.get_webhook_config(ctx.guild)
+        if await config.webhook() and not await Confirm("Are you sure you want to unbind the webhook?").prompt(ctx):
+            return await ctx.send("Aborting")
+
+        await config.set_webhook(None)
         await ctx.send(":white_check_mark: Unbound webhook")
 
     @commands.command(name="react", descrition="React to a message with any emoji", usage="<emoji> <message>")

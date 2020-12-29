@@ -17,14 +17,10 @@ class Stickers(commands.Cog):
         if not sticker:
             return await ctx.send(":x: No sticker with that name")
 
-        query = """SELECT *
-                   FROM webhooks
-                   WHERE webhooks.guild_id=$1;
-                """
-        webhook = await self.bot.db.fetchrow(query, ctx.guild.id)
+        config = await self.bot.get_webhook_config(ctx.guild)
+        webhook = await config.webhook()
 
-        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook and webhook["webhook_id"]:
-            webhook = await self.bot.fetch_webhook(webhook["webhook_id"])
+        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks and webhook:
             if webhook.channel_id != ctx.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
 
