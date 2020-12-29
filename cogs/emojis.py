@@ -46,7 +46,7 @@ class EmojiPages(menus.ListPageSource):
 def finder(text, collection, *, key=None, lazy=True):
     suggestions = []
     text = str(text)
-    pat = '.*?'.join(map(re.escape, text))
+    pat = ".*?".join(map(re.escape, text))
     regex = re.compile(pat, flags=re.IGNORECASE)
     for item in collection:
         to_search = key(item) if key else item
@@ -71,7 +71,7 @@ class Emojis(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         context = await self.bot.get_context(message)
-        if (message.author.bot or not message.guild or self.bot.config.ignore) or (context.valid):
+        if (message.author.bot or not message.guild or self.bot.config.ignore) or context.valid:
             return
 
         message_content, found = self.replace_emojis(message.content)
@@ -176,23 +176,6 @@ class Emojis(commands.Cog):
 
         return webhook_config
 
-    @commands.command(name="delete", description="Delete a reposted message")
-    async def delete(self, ctx, message: discord.Message):
-        try:
-            await ctx.message.delete()
-        except discord.HTTPException:
-            pass
-
-        original = self.bot.reposted_messages.get(message.id)
-
-        if not original:
-            return await ctx.send(":x: This message is unable to be deleted", delete_after=5)
-        if original.author.id != ctx.author.id:
-            return await ctx.send(":x: You did not post this message", delete_after=5)
-
-        self.bot.reposted_messages.pop(message.id)
-        await message.delete()
-
     @commands.command(name="edit", description="Edit a reposted message")
     async def edit(self, ctx, message: discord.Message, *, content):
         try:
@@ -221,6 +204,23 @@ class Emojis(commands.Cog):
             await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
         else:
             await ctx.send(":x: This message is unable to be edited", delete_after=5)
+
+    @commands.command(name="delete", description="Delete a reposted message")
+    async def delete(self, ctx, message: discord.Message):
+        try:
+            await ctx.message.delete()
+        except discord.HTTPException:
+            pass
+
+        original = self.bot.reposted_messages.get(message.id)
+
+        if not original:
+            return await ctx.send(":x: This message is unable to be deleted", delete_after=5)
+        if original.author.id != ctx.author.id:
+            return await ctx.send(":x: You did not post this message", delete_after=5)
+
+        self.bot.reposted_messages.pop(message.id)
+        await message.delete()
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.bot_has_permissions(manage_webhooks=True)
@@ -320,7 +320,7 @@ class Emojis(commands.Cog):
 
         await message.add_reaction(emoji)
 
-        # Wait for the use to add a reaction, then we can remove our reaction to make it look like the user used the emoji
+        # Wait for the user to add a reaction, then we can remove our reaction to make it look like the user used the emoji
         def check(event):
             return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji.id == emoji.id
         await self.bot.wait_for("raw_reaction_add", check=check)
