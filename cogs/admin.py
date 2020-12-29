@@ -23,12 +23,12 @@ class Confirm(menus.Menu):
     async def send_initial_message(self, ctx, channel):
         return await channel.send(self.msg)
 
-    @menus.button('\N{WHITE HEAVY CHECK MARK}')
+    @menus.button("\N{WHITE HEAVY CHECK MARK}")
     async def do_confirm(self, payload):
         self.result = True
         self.stop()
 
-    @menus.button('\N{CROSS MARK}')
+    @menus.button("\N{CROSS MARK}")
     async def do_deny(self, payload):
         self.result = False
         self.stop()
@@ -42,11 +42,56 @@ class Admin(commands.Cog):
         self.bot = bot
         self.update_loop.start()
 
+    def cog_check(self, ctx):
+        return ctx.author.id == self.bot.owner_id
+
     def cog_unload(self):
         self.update_loop.cancel()
 
-    def cog_check(self, ctx):
-        return ctx.author.id == self.bot.owner_id
+    @commands.command(name="reload", description="Reload an extension")
+    @commands.is_owner()
+    async def reload(self, ctx, extension):
+        try:
+            self.bot.reload_extension(extension)
+            await ctx.send(f"**:repeat: Reloaded** `{extension}`")
+        except Exception as e:
+            full = "".join(traceback.format_exception(type(e), e, e.__traceback__, 1))
+            await ctx.send(f"**:warning: Extension `{extension}` not reloaded.**\n```py\n{full}```")
+
+    @commands.command(name="update", description="Update the bot")
+    async def update(self, ctx):
+        await ctx.trigger_typing()
+
+        regex = re.compile(r"\s*(?P<filename>.+?)\s*\|\s*[0-9]+\s*[+-]+")
+
+        process = await asyncio.create_subprocess_shell("git pull", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = await process.communicate()
+        text = stdout.decode()
+
+        files = regex.findall(text)
+        cogs = []
+        for file in files:
+            root, ext = os.path.splitext(file)
+            if root.startswith("cogs/") and root.count("/") == 1 and ext == ".py":
+                cogs.append(root.replace("/", "."))
+
+        if not cogs:
+            return await ctx.send("No cogs to update")
+
+        cogs_text = "\n".join(cogs)
+        result = await Confirm(f"Are you sure you want to update the following cogs:\n{cogs_text}").prompt(ctx)
+        if not result:
+            return await ctx.send(":x: Aborting")
+
+        text = ""
+        for cog in cogs:
+            try:
+                self.bot.reload_extension(cog)
+                text += f"\n:white_check_mark: {cog}"
+            except:
+                text += f"\n:x: {cog}"
+
+        await ctx.send(text)
 
     @commands.command(name="sql", description="Run some sql")
     async def sql(self, ctx, *, code: codeblock_converter):
@@ -85,41 +130,6 @@ class Admin(commands.Cog):
             await ctx.send(f"Executed in {int((end-start)*1000)}ms\n```{results}```")
         except discord.HTTPException:
             await ctx.send(file=discord.File(io.BytesIO(str(results).encode("utf-8")), filename="result.txt"))
-
-    @commands.command(name="update", description="Update the bot")
-    async def update(self, ctx):
-        await ctx.trigger_typing()
-
-        regex = re.compile(r"\s*(?P<filename>.+?)\s*\|\s*[0-9]+\s*[+-]+")
-
-        process = await asyncio.create_subprocess_shell("git pull", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = await process.communicate()
-        text = stdout.decode()
-
-        files = regex.findall(text)
-        cogs = []
-        for file in files:
-            root, ext = os.path.splitext(file)
-            if root.startswith("cogs/") and root.count("/") == 1 and ext == ".py":
-                cogs.append(root.replace("/", "."))
-
-        if not cogs:
-            return await ctx.send("No cogs to update")
-
-        cogs_text = "\n".join(cogs)
-        result = await Confirm(f"Are you sure you want to update the following cogs:\n{cogs_text}").prompt(ctx)
-        if not result:
-            return await ctx.send(":x: Aborting")
-
-        text = ""
-        for cog in cogs:
-            try:
-                self.bot.reload_extension(cog)
-                text += f"\n:white_check_mark: {cog}"
-            except:
-                text += f"\n:x: {cog}"
-
-        await ctx.send(text)
 
     @commands.command(name="logout", description="Logout the bot")
     @commands.is_owner()
