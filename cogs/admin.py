@@ -42,8 +42,8 @@ class Admin(commands.Cog):
         self.bot = bot
         self.update_loop.start()
 
-    def cog_check(self, ctx):
-        return ctx.author.id == self.bot.owner_id
+    async def cog_check(self, ctx):
+        return await commands.is_owner().predicate(ctx)
 
     def cog_unload(self):
         self.update_loop.cancel()
