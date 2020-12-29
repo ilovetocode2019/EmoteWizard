@@ -29,21 +29,6 @@ class WebhookConverter(commands.Converter):
             raise commands.errors.BadArgument("That is not a webhook URL or ID")
         return arg
 
-class GuildConverter(commands.Converter):
-    async def convert(self, ctx, arg):
-        try:
-            int_arg = int(arg)
-            guild = ctx.bot.get_guild(int_arg)
-            if guild:
-                return guild
-        except ValueError:
-            pass
-
-        guild = discord.utils.get(ctx.bot.guilds, name=arg)
-        if not guild:
-            raise commands.BadArgument(f"Guild '{arg}' not found")
-        return guild
-
 class EmojiPages(menus.ListPageSource):
     def __init__(self, data):
         self.data = data
@@ -114,7 +99,7 @@ class Emojis(commands.Cog):
         else:
             return await message.channel.send(" ".join(found))
 
-    @commands.Cog.listener("on_reaction_add")
+    @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         original = self.bot.reposted_messages.get(reaction.message.id)
 
@@ -358,18 +343,6 @@ class Emojis(commands.Cog):
     @emoji.command(name="list", description="List all emojis you can see")
     async def emoji_list(self, ctx):
         emojis = [(emoji.name, str(emoji)) for emoji in self.bot.emojis if ctx.author.id in [member.id for member in emoji.guild.members]]
-
-        pages = menus.MenuPages(source=EmojiPages(sorted(emojis, key=lambda x: x[0].lower())), clear_reactions_after=True)
-        await pages.start(ctx)
-
-    @emoji.command(name="server", description="List all emojis for a server", aliases=["guild"], usage="<server>")
-    async def emoji_server(self, ctx, *, guild: GuildConverter):
-        if ctx.author.id != self.bot.owner_id and ctx.author.id not in [member.id for member in guild.members]:
-            return await ctx.send(":x: You are not in this server")
-        if len(guild.emojis) == 0:
-            return await ctx.send(":x: This server has no emojis")
-
-        emojis = [(emoji.name, str(emoji)) for emoji in guild.emojis]
 
         pages = menus.MenuPages(source=EmojiPages(sorted(emojis, key=lambda x: x[0].lower())), clear_reactions_after=True)
         await pages.start(ctx)
