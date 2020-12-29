@@ -38,18 +38,33 @@ class EmojiConverter(commands.Converter):
 
 class WebhookConverter(commands.Converter):
     async def convert(self, ctx, arg):
+        # Retrive a lit of existing webhooks
+        webhooks = await ctx.guild.webhooks()
+
+        # Attempt to get the webhook by name
+        webhook = discord.utils.get(webhooks, name=arg)
+        if webhook:
+            return webhook
+
+        webhook_id = None
+
         # Attempt to convert the argument into an ID
         try:
-            arg = int(arg)
-        # Otherwise attempt to get the ID from the URL using regex
-        except:
-            arg = re.findall("https://(?:(?:ptb|canary)\.)?discord(?:app)?.com/api/webhooks/([0-9]+)/.+", arg)
-            if arg:
-                arg = int(arg[0])
+            webhook_id = int(arg)
+        except ValueError:
+            pass
 
-        if not type(arg) is int:
-            raise commands.errors.BadArgument("That is not a webhook URL or ID")
-        return arg
+        # Otherwise attempt to get the ID from the URL using regex
+        matches = re.findall("https://(?:(?:ptb|canary)\.)?discord(?:app)?.com/api/webhooks/([0-9]+)/.+", arg)
+        if matches:
+            webhook_id =  int(matches[0])
+
+        # Attempt to get the webhook by ID
+        webhook = discord.utils.get(webhooks, id=webhook_id)
+        if webhook:
+            return webhook
+
+        raise commands.BadArgument(f"Couldn't find the webhook `{arg}`")
 
 class EmojiPages(menus.ListPageSource):
     def __init__(self, data):
@@ -222,14 +237,7 @@ class Emojis(commands.Cog):
     @webhook.command(name="set", description="Set the webhook")
     @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
-    async def webhook_set(self, ctx, webhook: WebhookConverter):
-        try:
-            webhook = await self.bot.fetch_webhook(webhook)
-        except discord.NotFound:
-            return await ctx.send(":x: That webhook does not exist")
-        if webhook.guild_id != ctx.guild.id:
-            return await ctx.send(":x: That webhook does not exist")
-
+    async def webhook_set(self, ctx, *, webhook: WebhookConverter):
         config = await self.bot.get_webhook_config(ctx.guild)
         if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
             return await ctx.send("Aborting")
