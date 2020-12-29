@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 
 import datetime
+import functools
 import io
 from PIL import Image, ImageDraw, ImageOps
 
@@ -72,26 +73,7 @@ class Replies(commands.Cog):
                     if emoji["emoij_id"] == to_delete.id:
                         self.bot.avatar_emojis.pop(emoji["user_id"])
 
-            # Fetch the avatar
-            async with self.bot.session.get(str(message.author.avatar_url_as(format="png"))) as resp:
-                avatar = io.BytesIO(await resp.read())
-                avatar = Image.open(avatar)
-
-            # Round it
-            mask = Image.new("L", (128, 128), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.ellipse((0, 0) + (128, 128), fill=255)
-
-            output = ImageOps.fit(avatar, mask.size, centering=(0.5, 0.5))
-            output.putalpha(mask)
-
-            # Save to file
-            avatar = io.BytesIO()
-            output.save(avatar, "PNG")
-            avatar.seek(0)
-
-            # Create the new emoji
-            emoji = await self.bot.stickers_guild.create_custom_emoji(name=f"user_{message.author.id}", image=avatar.read())
+            emoji = await self.create_avatar_emoji(ctx.author)
 
             # Update/insert a row
             query = """INSERT INTO avatar_emojis (user_id, emoji_id, avatar_url)
@@ -159,6 +141,27 @@ class Replies(commands.Cog):
             await webhook.send(embed=em, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url)
         else:
             await ctx.send(embed=em)
+
+    async def create_avatar_emoji(self, user):
+        # Fetch the avatar
+        async with self.bot.session.get(str(user.avatar_url_as(format="png"))) as resp:
+            avatar = io.BytesIO(await resp.read())
+            avatar = Image.open(avatar)
+
+        # Round it
+        mask = Image.new("L", (128, 128), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0) + (128, 128), fill=255)
+
+        output = ImageOps.fit(avatar, mask.size, centering=(0.5, 0.5))
+        output.putalpha(mask)
+
+        # Save to file
+        avatar = io.BytesIO()
+        output.save(avatar, "PNG")
+        avatar.seek(0)
+
+        return await self.bot.stickers_guild.create_custom_emoji(name=f"user_{user.id}", image=avatar.read())
 
 def setup(bot):
     bot.add_cog(Replies(bot))
