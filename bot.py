@@ -137,14 +137,23 @@ class Bot(commands.Bot):
             )
         self.db = await asyncpg.create_pool(config.sql, init=init)
 
-        query = """CREATE TABLE IF NOT EXISTS
-                   webhooks (guild_id BIGINT PRIMARY KEY, webhook_id BIGINT);
+        query = """CREATE TABLE IF NOT EXISTS webhooks (
+                       guild_id BIGINT PRIMARY KEY,
+                       webhook_id BIGINT
+                   );
 
-                   CREATE TABLE IF NOT EXISTS
-                   stickers (owner_id BIGINT, name TEXT, content_url TEXT);
+                   CREATE TABLE IF NOT EXISTS stickers (
+                       owner_id BIGINT,
+                       name TEXT,
+                       content_url TEXT
+                   );
 
-                   CREATE TABLE IF NOT EXISTS
-                   avatar_emojis (user_id BIGINT, emoji_id BIGINT, avatar_url TEXT, last_used TIMESTAMP DEFAULT (now() at time zone 'utc'), PRIMARY KEY (user_id))
+                   CREATE TABLE IF NOT EXISTS avatar_emojis (
+                       user_id BIGINT PRIMARY KEY,
+                       emoji_id BIGINT,
+                       avatar_url TEXT,
+                       last_used TIMESTAMP DEFAULT (now() at time zone 'utc')
+                   );
                    """
         await self.db.execute(query)
 
@@ -153,10 +162,9 @@ class Bot(commands.Bot):
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
-        self.console = bot.get_channel(config.console)
         self.stickers_channel = self.get_channel(config.stickers_channel)
         self.stickers_guild = self.get_guild(config.stickers_guild)
-
+        self.console = bot.get_channel(config.console)
 
     def run(self):
         super().run(config.token)
