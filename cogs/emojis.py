@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ext import menus
 
+import asyncio
 import re
 import typing
 from io import BytesIO
@@ -237,32 +238,45 @@ class Emojis(commands.Cog):
 
     @commands.command(name="react", descrition="React to a message with any emoji", usage="<emoji> <message>")
     async def react(self, ctx, emoji: converters.EmojiConverter, channel: typing.Optional[discord.TextChannel], *, message: converters.MessageConverter = None):
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
+        # If no message is specified, default to the last message
         channel = channel if isinstance(channel, discord.TextChannel) else ctx.channel
         if not message:
             messages = await channel.history(limit=1, before=ctx.message).flatten()
             if not messages:
-                return await ctx.send(":x: I couldn't find a message to react to")
+                return await ctx.send(":x: I couldn't find a message to react to", delete_after=5)
             message = messages[0]
 
-        if not channel.permissions_for(ctx.me).add_reactions:
-            return await ctx.send(":x: I don't have permissions to add reactions in that channel")
-
+        # Don't let users get around permissions
         if not channel.permissions_for(ctx.author).add_reactions:
-            return await ctx.send(":x: You don't have permissions to add reactions in that channel")
+            return await ctx.send(f":x: You don't have permissions to add reactions in {channel.mention}", delete_after=5)
 
-        # Attempt to delete the user's message
+        # Don't add extra reactions
+        if discord.utils.find(lambda reaction: getattr(reaction.emoji, "id", None) == emoji.id, message.reactions):
+            return await ctx.send(":x: That reaction has already been added")
+ 
         try:
-            await ctx.message.delete()
-        except (discord.Forbidden, discord.NotFound):
-            pass
+            await message.add_reaction(emoji)
+        except discord.Forbidden as exc:
+            if exc.code == 30010:
+                return await ctx.send(":x: The maximum number of reactions has been reached", delete_after=5)
+            elif exc.code == 50013:
+                return await ctx.send(f":x: I don't have permissions to add reactions in {channel.mention}", delete_after=5)
+            else:
+                return await ctx.send(f":x: I couldn't add that reaction for an unknown reason")
 
-        await message.add_reaction(emoji)
-
-        # Wait for the user to add a reaction, then we can remove our reaction to make it look like the user used the emoji
         def check(event):
             return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji.id == emoji.id
-        await self.bot.wait_for("raw_reaction_add", check=check)
-        await message.remove_reaction(emoji, self.bot.user)
+        try:
+            await self.bot.wait_for("raw_reaction_add", check=check, timeout=30)
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            await message.remove_reaction(emoji, self.bot.user)
 
     @commands.group(name="emoji", description="Fetch an emoji", aliases=["emote"], invoke_without_command=True)
     async def emoji(self, ctx, emoji: converters.EmojiConverter):
