@@ -33,6 +33,7 @@ class Replies(commands.Cog):
         self.bot = bot
 
     @commands.group(name="reply", description="Reply to a message", invoke_without_command=True)
+    @commands.guild_only()
     @commands.bot_has_permissions(manage_messages=True, manage_webhooks=True)
     async def reply(self, ctx, channel: typing.Optional[discord.TextChannel], message: converters.MessageConverter, *, reply):
         channel = channel if isinstance(channel, discord.TextChannel) else ctx.channel

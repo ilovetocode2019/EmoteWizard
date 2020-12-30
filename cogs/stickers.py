@@ -17,7 +17,7 @@ class Stickers(commands.Cog):
         if not sticker:
             return await ctx.send(":x: No sticker with that name")
 
-        if not (ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks):
+        if isinstance(ctx.channel, discord.DMChannel) or not (ctx.me.guild_permissions.manage_messages and ctx.me.guild_permissions.manage_webhooks):
             return await ctx.send(sticker["content_url"])
 
         config = await self.bot.get_webhook_config(ctx.guild)

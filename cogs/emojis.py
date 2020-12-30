@@ -53,7 +53,7 @@ class Emojis(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         context = await self.bot.get_context(message)
-        if (message.author.bot or not message.guild or self.bot.config.ignore) or context.valid:
+        if message.author.bot or self.bot.config.ignore or context.valid:
             return
 
         message_content, found = self.replace_emojis(message.content)
@@ -62,7 +62,7 @@ class Emojis(commands.Cog):
             return
 
         # If we don't have permissions just skip everything else and send it through the bot now
-        if not (message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks):
+        if isinstance(message.channel, discord.DMChannel) or not (message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks):
             return await message.channel.send(" ".join(found))
 
         config = await self.bot.get_webhook_config(message.guild)
@@ -148,6 +148,7 @@ class Emojis(commands.Cog):
         return replaced, found
 
     @commands.command(name="edit", description="Edit a reposted message")
+    @commands.guild_only()
     @commands.bot_has_permissions(manage_webhooks=True)
     async def edit(self, ctx, message: discord.Message, *, content):
         try:
@@ -176,6 +177,7 @@ class Emojis(commands.Cog):
             await ctx.send(":x: This message is unable to be edited", delete_after=5)
 
     @commands.command(name="delete", description="Delete a reposted message")
+    @commands.guild_only()
     @commands.bot_has_permissions(manage_messages=True)
     async def delete(self, ctx, message: discord.Message):
         await ctx.message.delete()
