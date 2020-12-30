@@ -261,13 +261,13 @@ class Emojis(commands.Cog):
  
         try:
             await message.add_reaction(emoji)
-        except discord.Forbidden as exc:
+        except discord.HTTPException as exc:
             if exc.code == 30010:
                 return await ctx.send(":x: The maximum number of reactions has been reached", delete_after=5)
             elif exc.code == 50013:
                 return await ctx.send(f":x: I don't have permissions to add reactions in {channel.mention}", delete_after=5)
             else:
-                return await ctx.send(f":x: I couldn't add that reaction for an unknown reason")
+                return await ctx.send(f":x: I couldn't add that reaction for an unknown reason (error code {exc.code})s")
 
         def check(event):
             return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji.id == emoji.id
