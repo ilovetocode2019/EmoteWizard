@@ -83,7 +83,7 @@ class Replies(commands.Cog):
                     if emoji["emoij_id"] == to_delete.id:
                         self.bot.avatar_emojis.pop(emoji["user_id"])
 
-            emoji = await self.create_avatar_emoji(ctx.author)
+            emoji = await self.create_avatar_emoji(message.author)
 
             # Update/insert a row
             query = """INSERT INTO avatar_emojis (user_id, emoji_id, avatar_url)
