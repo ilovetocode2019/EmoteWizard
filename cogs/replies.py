@@ -39,7 +39,7 @@ class Replies(commands.Cog):
         if not message:
             messages = await channel.history(limit=1, before=ctx.message).flatten()
             if not messages:
-                return await ctx.send(":x: I couldn't find a message to react to")
+                return await ctx.send(":x: I couldn't find a message to reply to")
             message = messages[0]
 
         mention = True
