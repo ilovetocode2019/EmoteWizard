@@ -71,12 +71,14 @@ class Bot(commands.Bot):
         intents = discord.Intents.all()
         intents.presences = False
         super().__init__(command_prefix=get_prefix, intents=intents)
-
-        self.loop.create_task(self.load_extensions())
         self.loop.create_task(self.prepare_bot())
 
         self.startup_time = datetime.datetime.utcnow()
         self.reposted_messages = {}
+
+        self.load_extension("jishaku")
+        for extension in extensions:
+            self.load_extension(extension)
 
         self.config = config
         if not hasattr(config, "default_prefix"):
@@ -121,13 +123,6 @@ class Bot(commands.Bot):
                 "webhook_id": None
             }
         return WebhookConfig.from_record(dict(record), self)
-
-    async def load_extensions(self):
-        self.load_extension("jishaku")
-        self.get_command("jishaku").hidden = True
-
-        for extension in extensions:
-            self.load_extension(extension)
 
     async def prepare_bot(self):
         self.session = aiohttp.ClientSession()
