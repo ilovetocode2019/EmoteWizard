@@ -53,7 +53,7 @@ class WebhookConfig:
 
         try:
             return await self.bot.fetch_webhook(self.webhook_id)
-        except discord.NotFound:
+        except discord.HTTPException:
             return None
 
     async def set_webhook(self, webhook_id):
@@ -162,9 +162,9 @@ class Bot(commands.Bot):
         self.stickers_channel = self.get_channel(config.stickers_channel)
         self.stickers_guild = self.get_guild(config.stickers_guild)
 
+
     def run(self):
         super().run(config.token)
-
 
 bot = Bot()
 bot.run()

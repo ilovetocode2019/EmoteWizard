@@ -30,6 +30,7 @@ class Replies(commands.Cog):
         self.bot = bot
 
     @commands.group(name="reply", description="Reply to a message", invoke_without_command=True)
+    @commands.bot_has_permissions(manage_messages=True, manage_webhooks=True)
     async def reply(self, ctx, message: discord.Message, *, reply):
         mention = True
         if reply.startswith("--no-mention"):
@@ -41,6 +42,8 @@ class Replies(commands.Cog):
 
         config = await self.bot.get_webhook_config(ctx.guild)
         webhook = await config.webhook()
+        if not webhook:
+            return await ctx.send(":x: No webhook is set")
 
         # Fetch emoji
         emoji = self.bot.avatar_emojis.get(message.author.id)
@@ -102,20 +105,14 @@ class Replies(commands.Cog):
         content = str(reply)
 
         # Send message
-        if ctx.guild.me.guild_permissions.manage_messages and ctx.guild.me.guild_permissions.manage_webhooks:
-            if not webhook:
-                return await ctx.send(":x: No webhook is set")
+        await ctx.message.delete()
 
-            await ctx.message.delete()
+        # Update webhook if needed
+        if webhook.channel_id != ctx.channel.id:
+            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
 
-            # Update webhook if needed
-            if webhook.channel_id != ctx.channel.id:
-                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
-
-            message = await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention), wait=True)
-            self.bot.reposted_messages[message.id] = reply
-        else:
-            await ctx.send(":x: I am missing permissions I need to send a reply", delete_after=5)
+        message = await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention), wait=True)
+        self.bot.reposted_messages[message.id] = reply
 
     async def create_avatar_emoji(self, user):
         # Fetch the avatar

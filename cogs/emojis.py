@@ -95,11 +95,15 @@ class Emojis(commands.Cog):
         if len(found) == 0:
             return
 
+        # If we don't have permissions just skip everything else and send it through the bot now
+        if not (message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks):
+            return await message.channel.send(" ".join(found))
+
         config = await self.bot.get_webhook_config(message.guild)
         webhook = await config.webhook()
 
-        # If a webhook config and the bot has permissions to delete messages, continue
-        if message.guild.me.guild_permissions.manage_messages and message.guild.me.guild_permissions.manage_webhooks and webhook:
+        # If a webhook is configured, send it through the webhook
+        if webhook:
             # make an HTTP request to update the channel if needed
             if webhook.channel_id != message.channel.id:
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": message.channel.id})
@@ -124,11 +128,11 @@ class Emojis(commands.Cog):
         if original.author.id != user.id:
             return
 
-        if reaction.emoji == "\N{CROSS MARK}":
+        if reaction.emoji == "\N{CROSS MARK}" and reaction.message.guild.me.guild_permissions.manage_messages:
             self.bot.reposted_messages.pop(reaction.message.id)
             await reaction.message.delete()
 
-        elif reaction.emoji == "\N{MEMO}" or reaction.emoji == "\N{PENCIL}\N{VARIATION SELECTOR-16}":
+        elif (reaction.emoji == "\N{MEMO}" or reaction.emoji == "\N{PENCIL}\N{VARIATION SELECTOR-16}") and reaction.message.guild.me.guild_permissions.manage_webhooks:
             await reaction.remove(user)
 
             await user.send("What would you like to edit your message to?")
@@ -178,15 +182,15 @@ class Emojis(commands.Cog):
         return replaced, found
 
     @commands.command(name="edit", description="Edit a reposted message")
+    @commands.bot_has_permissions(manage_webhooks=True)
     async def edit(self, ctx, message: discord.Message, *, content):
         try:
             await ctx.message.delete()
         except discord.HTTPException:
             pass
 
-        config = await self.bot.get_webhook_config(ctx.guild)
-        webhook = await config.webhook()
         original = self.bot.reposted_messages.get(message.id)
+        webhook = await self.bot.fetch_webhook(message.webhook_id)
 
         if not original or not webhook:
             return await ctx.send(":x: This message is unable to be edited", delete_after=5)
@@ -206,11 +210,9 @@ class Emojis(commands.Cog):
             await ctx.send(":x: This message is unable to be edited", delete_after=5)
 
     @commands.command(name="delete", description="Delete a reposted message")
+    @commands.bot_has_permissions(manage_messages=True)
     async def delete(self, ctx, message: discord.Message):
-        try:
-            await ctx.message.delete()
-        except discord.HTTPException:
-            pass
+        await ctx.message.delete()
 
         original = self.bot.reposted_messages.get(message.id)
 
@@ -223,8 +225,8 @@ class Emojis(commands.Cog):
         await message.delete()
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
-    @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
+    @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook(self, ctx):
         config = await self.bot.get_webhook_config(ctx.guild)
         webhook = await config.webhook()
@@ -235,8 +237,8 @@ class Emojis(commands.Cog):
         await ctx.send(f"The webhook set is `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="set", description="Set the webhook")
-    @commands.bot_has_permissions(manage_webhooks=True)
     @commands.has_permissions(manage_webhooks=True)
+    @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook_set(self, ctx, *, webhook: WebhookConverter):
         config = await self.bot.get_webhook_config(ctx.guild)
         if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
@@ -257,12 +259,12 @@ class Emojis(commands.Cog):
         await config.set_webhook(webhook.id)
         await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
-    @webhook.command(name="unbind", description="Unbund the webhook")
-    @commands.bot_has_permissions(manage_webhooks=True)
+    @webhook.command(name="unbind", description="Unbind the webhook")
     @commands.has_permissions(manage_webhooks=True)
+    @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook_unbind(self, ctx):
         config = await self.bot.get_webhook_config(ctx.guild)
-        if await config.webhook() and not await Confirm("Are you sure you want to unbind the webhook?").prompt(ctx):
+        if  await config.webhook() and not await Confirm("Are you sure you want to unbind the webhook?").prompt(ctx):
             return await ctx.send("Aborting")
 
         await config.set_webhook(None)
@@ -280,7 +282,7 @@ class Emojis(commands.Cog):
         # Get the emoji
         emoji = discord.utils.get(self.bot.emojis, name=emoji_name)
         if not emoji:
-            return await ctx.send(f":x: Couldn't find an emoji named `{emoji_name}`", delete_after=5)
+            return await ctx.send(f":x: I couldn't find an emoji named `{emoji_name}`", delete_after=5)
 
         # Convert message to an int
         if not message:
@@ -290,7 +292,7 @@ class Emojis(commands.Cog):
         except:
             return await ctx.send(f":x: `{message}` is not a integer", delete_after=5)
 
-        # If the message is less than 0 it is a message index so we need to fetch that amount of history
+        # If the message is less than 0 it's a message index so we need to fetch that amount of history
         if message < 0:
             try:
                 limit = message * -1
