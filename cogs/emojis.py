@@ -3,10 +3,12 @@ from discord.ext import commands
 from discord.ext import menus
 
 import re
+import typing
 from io import BytesIO
 
 from .replies import Reply
 from .utils.menus import Confirm
+from .utils import converters
 
 def finder(text, collection, *, key=None, lazy=True):
     suggestions = []
@@ -28,43 +30,6 @@ def finder(text, collection, *, key=None, lazy=True):
         return (z for _, _, z in sorted(suggestions, key=sort_key))
     else:
         return [z for _, _, z in sorted(suggestions, key=sort_key)]
-
-class EmojiConverter(commands.Converter):
-    async def convert(self, ctx, arg):
-        emoji = discord.utils.get(ctx.bot.emojis, name=arg)
-        if not emoji:
-            raise commands.errors.BadArgument(f"`{arg}` is not an emoji")
-        return emoji
-
-class WebhookConverter(commands.Converter):
-    async def convert(self, ctx, arg):
-        # Retrive a lit of existing webhooks
-        webhooks = await ctx.guild.webhooks()
-
-        # Attempt to get the webhook by name
-        webhook = discord.utils.get(webhooks, name=arg)
-        if webhook:
-            return webhook
-
-        webhook_id = None
-
-        # Attempt to convert the argument into an ID
-        try:
-            webhook_id = int(arg)
-        except ValueError:
-            pass
-
-        # Otherwise attempt to get the ID from the URL using regex
-        matches = re.findall("https://(?:(?:ptb|canary)\.)?discord(?:app)?.com/api/webhooks/([0-9]+)/.+", arg)
-        if matches:
-            webhook_id =  int(matches[0])
-
-        # Attempt to get the webhook by ID
-        webhook = discord.utils.get(webhooks, id=webhook_id)
-        if webhook:
-            return webhook
-
-        raise commands.BadArgument(f"Couldn't find the webhook `{arg}`")
 
 class EmojiPages(menus.ListPageSource):
     def __init__(self, data):
@@ -239,7 +204,7 @@ class Emojis(commands.Cog):
     @webhook.command(name="set", description="Set the webhook")
     @commands.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
-    async def webhook_set(self, ctx, *, webhook: WebhookConverter):
+    async def webhook_set(self, ctx, *, webhook: converters.WebhookConverter):
         config = await self.bot.get_webhook_config(ctx.guild)
         if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
             return await ctx.send("Aborting")
@@ -271,44 +236,25 @@ class Emojis(commands.Cog):
         await ctx.send(":white_check_mark: Unbound webhook")
 
     @commands.command(name="react", descrition="React to a message with any emoji", usage="<emoji> <message>")
-    async def react(self, ctx, emoji_name, message = None):
+    async def react(self, ctx, emoji: converters.EmojiConverter, channel: typing.Optional[discord.TextChannel], *, message: converters.MessageConverter = None):
+        channel = channel if isinstance(channel, discord.TextChannel) else ctx.channel
+        if not message:
+            messages = await channel.history(limit=1, before=ctx.message).flatten()
+            if not messages:
+                return await ctx.send(":x: I couldn't find a message to react to")
+            message = messages[0]
+
+        if not channel.permissions_for(ctx.me).add_reactions:
+            return await ctx.send(":x: I don't have permissions to add reactions in that channel")
+
+        if not channel.permissions_for(ctx.author).add_reactions:
+            return await ctx.send(":x: You don't have permissions to add reactions in that channel")
+
         # Attempt to delete the user's message
         try:
             await ctx.message.delete()
-            deleted = True
-        except:
-            deleted = False
-
-        # Get the emoji
-        emoji = discord.utils.get(self.bot.emojis, name=emoji_name)
-        if not emoji:
-            return await ctx.send(f":x: I couldn't find an emoji named `{emoji_name}`", delete_after=5)
-
-        # Convert message to an int
-        if not message:
-            message = -1
-        try:
-            message = int(message)
-        except:
-            return await ctx.send(f":x: `{message}` is not a integer", delete_after=5)
-
-        # If the message is less than 0 it's a message index so we need to fetch that amount of history
-        if message < 0:
-            try:
-                limit = message * -1
-                if not deleted:
-                    limit += 1
-                history = await ctx.channel.history(limit=limit).flatten()
-                message = history[limit-1]
-            except (discord.HTTPException, IndexError):
-                return await ctx.send(":x: Could not fetch message from history", delete_after=5)
-
-        # Otherwise just fetch the message
-        else:
-            try:
-                message = await ctx.channel.fetch_message(message)
-            except discord.HTTPException:
-                return await ctx.send(":x: Could not fetch message", delete_after=5)
+        except (discord.Forbidden, discord.NotFound):
+            pass
 
         await message.add_reaction(emoji)
 
@@ -319,7 +265,7 @@ class Emojis(commands.Cog):
         await message.remove_reaction(emoji, self.bot.user)
 
     @commands.group(name="emoji", description="Fetch an emoji", aliases=["emote"], invoke_without_command=True)
-    async def emoji(self, ctx, emoji: EmojiConverter):
+    async def emoji(self, ctx, emoji: converters.EmojiConverter):
         await ctx.send(emoji)
 
     @emoji.command(name="search", description="Search for emojis by name", aliases=["find"])

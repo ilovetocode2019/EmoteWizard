@@ -1,10 +1,13 @@
 import discord
 from discord.ext import commands
 
-import datetime
 import functools
 import io
+import datetime
+import typing
 from PIL import Image, ImageDraw, ImageOps
+
+from .utils import converters
 
 class Reply:
     def __init__(self, message, reply, author, emoji, mention):
@@ -31,7 +34,14 @@ class Replies(commands.Cog):
 
     @commands.group(name="reply", description="Reply to a message", invoke_without_command=True)
     @commands.bot_has_permissions(manage_messages=True, manage_webhooks=True)
-    async def reply(self, ctx, message: discord.Message, *, reply):
+    async def reply(self, ctx, channel: typing.Optional[discord.TextChannel], message: converters.MessageConverter, *, reply):
+        channel = channel if isinstance(channel, discord.TextChannel) else ctx.channel
+        if not message:
+            messages = await channel.history(limit=1, before=ctx.message).flatten()
+            if not messages:
+                return await ctx.send(":x: I couldn't find a message to react to")
+            message = messages[0]
+
         mention = True
         if reply.startswith("--no-mention"):
             mention = False
