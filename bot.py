@@ -32,7 +32,7 @@ def get_prefix(bot, message):
 
 extensions = ["cogs.meta", "cogs.admin", "cogs.replies", "cogs.emojis", "cogs.stickers"]
 
-class WebhookConfig:
+class GuildConfig:
     @classmethod
     def from_record(cls, record, bot):
         self = cls()
@@ -59,7 +59,7 @@ class WebhookConfig:
     async def set_webhook(self, webhook_id):
         self.webhook_id = webhook_id
 
-        query = """INSERT INTO webhooks (guild_id, webhook_id)
+        query = """INSERT INTO guild_config (guild_id, webhook_id)
                    VALUES ($1, $2)
                    ON CONFLICT (guild_id) DO UPDATE
                    SET webhook_id=$2;
@@ -112,8 +112,8 @@ class Bot(commands.Bot):
     @cache.cache()
     async def get_webhook_config(self, guild):
         query = """SELECT *
-                   FROM webhooks
-                   WHERE webhooks.guild_id=$1;
+                   FROM guild_config
+                   WHERE guild_config.guild_id=$1;
                 """
         record = await self.db.fetchrow(query, guild.id)
 
@@ -122,7 +122,7 @@ class Bot(commands.Bot):
                 "guild_id": guild.id,
                 "webhook_id": None
             }
-        return WebhookConfig.from_record(dict(record), self)
+        return GuildConfig.from_record(dict(record), self)
 
     async def prepare_bot(self):
         self.session = aiohttp.ClientSession()
@@ -137,7 +137,7 @@ class Bot(commands.Bot):
             )
         self.db = await asyncpg.create_pool(config.sql, init=init)
 
-        query = """CREATE TABLE IF NOT EXISTS webhooks (
+        query = """CREATE TABLE IF NOT EXISTS guild_config (
                        guild_id BIGINT PRIMARY KEY,
                        webhook_id BIGINT
                    );
