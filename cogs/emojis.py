@@ -294,12 +294,5 @@ class Emojis(commands.Cog):
         pages = menus.MenuPages(source=EmojiPages(results), clear_reactions_after=True)
         await pages.start(ctx)
 
-    @emoji.command(name="list", description="List all emojis you can see")
-    async def emoji_list(self, ctx):
-        emojis = [(emoji.name, str(emoji)) for emoji in self.bot.emojis if ctx.author.id in [member.id for member in emoji.guild.members]]
-
-        pages = menus.MenuPages(source=EmojiPages(sorted(emojis, key=lambda x: x[0].lower())), clear_reactions_after=True)
-        await pages.start(ctx)
-
 def setup(bot):
     bot.add_cog(Emojis(bot))
