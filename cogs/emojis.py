@@ -223,7 +223,14 @@ class Emojis(commands.Cog):
         if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
             return await ctx.send("Aborting")
 
-        webhook = await ctx.channel.create_webhook(name="Stickers Hook")
+        try:
+            webhook = await ctx.channel.create_webhook(name="Stickers Hook")
+        except discord.HTTPException as exc:
+            if exc.code == 30007:
+                return await ctx.send(f":x: The maximum number of webhooks has been reached")
+            else:
+                return await ctx.send(f":x: I couldn't create a webhook for an unknown reason (error code {exc.code})")
+
         await config.set_webhook(webhook.id)
         await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
@@ -265,11 +272,11 @@ class Emojis(commands.Cog):
             await message.add_reaction(emoji)
         except discord.HTTPException as exc:
             if exc.code == 30010:
-                return await ctx.send(":x: The maximum number of reactions has been reached", delete_after=5)
+                return await ctx.send(":x: The maximum number of reactions has been reached for that message", delete_after=5)
             elif exc.code == 50013:
                 return await ctx.send(f":x: I don't have permissions to add reactions in {channel.mention}", delete_after=5)
             else:
-                return await ctx.send(f":x: I couldn't add that reaction for an unknown reason (error code {exc.code})s")
+                return await ctx.send(f":x: I couldn't add that reaction for an unknown reason (error code {exc.code})", delete_after=5)
 
         def check(event):
             return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji.id == emoji.id

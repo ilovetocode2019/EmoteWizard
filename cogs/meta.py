@@ -25,34 +25,32 @@ class Meta(commands.Cog):
     def cog_unload(self):
         self.bot.help_command = self._original_help_command
 
-    @commands.Cog.listener("on_command_error")
+    @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
-        print("Ignoring exception in command {}:".format(ctx.command), file=sys.stderr)
-        traceback.print_exception(
-            type(error), error, error.__traceback__, file=sys.stderr
-        )
+        print(f"Ignoring exception in command {ctx.command}:", file=sys.stderr)
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
-        if isinstance(error, discord.ext.commands.errors.BotMissingPermissions):
-            perms_text = "\n".join(
-                [
-                    f"- {perm.replace('_', ' ').capitalize()}"
-                    for perm in error.missing_perms
-                ]
-            )
-            return await ctx.send(f":x: Missing Permissions:\n {perms_text}")
-        elif isinstance(error, discord.ext.commands.errors.BadArgument):
-            return await ctx.send(f":x: {error}")
-        elif isinstance(error, discord.ext.commands.errors.MissingRequiredArgument):
-            return await ctx.send(f":x: {error}")
-        elif isinstance(error, discord.ext.commands.errors.CommandNotFound):
-            return
-        elif isinstance(error, discord.ext.commands.errors.CheckFailure):
-            return
-
-        await ctx.send(f"```py\n{error}\n```")
+        if isinstance(error, commands.PrivateMessageOnly):
+            await ctx.send("This command can only be used in DMs")
+        elif isinstance(error, commands.NoPrivateMessage):
+            await ctx.send("This command cannot be used in DMs")
+        elif isinstance(error, commands.errors.BotMissingPermissions):
+            perms_text = "\n".join([f"- {perm.replace('_', ' ').capitalize()}" for perm in error.missing_perms])
+            await ctx.send(f":x: I am missing some permissions:\n {perms_text}") 
+        elif isinstance(error, commands.errors.MissingRequiredArgument):
+            await ctx.send(f":x: You are missing a argument: `{error.param.name}`")
+        elif isinstance(error, commands.UserInputError):
+            await ctx.send(f":x: {error}")
+        elif isinstance(error, commands.errors.CommandOnCooldown):
+            await ctx.send(f"You are on cooldown. Try again in {formats.plural(int(error.retry_after)):second}.")
+        elif isinstance(error, commands.MaxConcurrencyReached):
+            await ctx.send(f":x: {error}")
 
         if isinstance(error, commands.CommandInvokeError):
-            em = discord.Embed(title=":warning: Error", description="", color=discord.Color.gold(), timestamp=datetime.datetime.utcnow())
+            em = discord.Embed(title=":warning: Error", description=f"An unexpected error has occured: \n```py\n{error}```", color=discord.Color.gold())
+            await ctx.send(embed=em)
+
+            em = discord.Embed(title=":warning: Error", description="", color=discord.Color.gold())
             em.description += f"\nCommand: `{ctx.command}`"
             em.description += f"\nLink: [Jump]({ctx.message.jump_url})"
             em.description += f"\n\n```py\n{error}```\n"
