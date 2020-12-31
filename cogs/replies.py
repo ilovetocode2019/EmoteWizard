@@ -139,7 +139,12 @@ class Replies(commands.Cog):
             avatar = io.BytesIO(await resp.read())
             avatar = Image.open(avatar)
 
-        # Round it
+        partial = functools.partial(self.round_avatar, avatar)
+        avatar = await self.bot.loop.run_in_executor(None, partial)
+
+        return await self.bot.stickers_guild.create_custom_emoji(name=f"user_{user.id}", image=avatar.read())
+
+    def round_avatar(self, avatar):
         mask = Image.new("L", (128, 128), 0)
         draw = ImageDraw.Draw(mask)
         draw.ellipse((0, 0) + (128, 128), fill=255)
@@ -147,12 +152,11 @@ class Replies(commands.Cog):
         output = ImageOps.fit(avatar, mask.size, centering=(0.5, 0.5))
         output.putalpha(mask)
 
-        # Save to file
         avatar = io.BytesIO()
         output.save(avatar, "PNG")
         avatar.seek(0)
 
-        return await self.bot.stickers_guild.create_custom_emoji(name=f"user_{user.id}", image=avatar.read())
+        return avatar
 
 def setup(bot):
     bot.add_cog(Replies(bot))
