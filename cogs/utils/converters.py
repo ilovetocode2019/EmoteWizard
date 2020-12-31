@@ -38,6 +38,8 @@ class MessageConverter(commands.Converter):
                 raise commands.BadArgument("Message offest must be negitive")
             message = history[limit-1]
             return message
+        except ValueError:
+            pass
         except IndexError as exc:
             raise commands.BadArgument("Message offset is out of range") from exc
 
