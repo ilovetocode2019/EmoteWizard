@@ -7,7 +7,7 @@ import datetime
 import typing
 from PIL import Image, ImageDraw, ImageOps
 
-from .utils import converters
+from .utils import converters, formats
 
 class Reply:
     def __init__(self, message, reply, author, emoji, mention):
@@ -24,7 +24,15 @@ class Reply:
         if self.message.content:
             content = "\n".join([f"> {discord.utils.escape_mentions(line)}" for line in self.message.content.split("\n")])
         else:
-            content = "> Jump to view embed(s) <:imageicon:779737947121123349>"
+            items = []
+            if self.message.embeds:
+                items.append("embed")
+            if self.message.attachments:
+                items.append("attachment")
+            if self.message.stickers:
+                items.append("sticker")
+
+            content = f"> Jump to view {formats.join(items, last='and')} <:imageicon:779737947121123349>"
 
         return f"{author} \n{content} \n{reply}"
 
