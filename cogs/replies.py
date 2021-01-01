@@ -75,7 +75,7 @@ class Replies(commands.Cog):
                 await emoji.delete()
 
             # If the emoji slots are full, remove the oldest used one
-            if len(self.bot.stickers_guild.emojis) >= 50:
+            if len(self.bot.guild.emojis) >= 50:
                 emojis = self.bot.avatar_emojis.values()
                 emojis = sorted(emojis, key = lambda x: x["last_used"])
                 to_delete = emojis[0]
@@ -142,7 +142,7 @@ class Replies(commands.Cog):
         partial = functools.partial(self.round_avatar, avatar)
         avatar = await self.bot.loop.run_in_executor(None, partial)
 
-        return await self.bot.stickers_guild.create_custom_emoji(name=f"user_{user.id}", image=avatar.read())
+        return await self.bot.guild.create_custom_emoji(name=f"user_{user.id}", image=avatar.read())
 
     def round_avatar(self, avatar):
         mask = Image.new("L", (128, 128), 0)

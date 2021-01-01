@@ -224,7 +224,7 @@ class Emojis(commands.Cog):
             return await ctx.send("Aborting")
 
         try:
-            webhook = await ctx.channel.create_webhook(name="Stickers Hook")
+            webhook = await ctx.channel.create_webhook(name="Emote Hook")
         except discord.HTTPException as exc:
             if exc.code == 30007:
                 return await ctx.send(f":x: The maximum number of webhooks has been reached")

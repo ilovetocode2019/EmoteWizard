@@ -41,7 +41,7 @@ class Stickers(commands.Cog):
         attachment = ctx.message.attachments[0]
         async with self.bot.session.get(attachment.url) as resp:
             file = io.BytesIO(await resp.read())
-        result = await self.bot.stickers_channel.send(file=discord.File(file, filename=attachment.filename))
+        result = await self.bot.channel.send(file=discord.File(file, filename=attachment.filename))
         url = result.attachments[0].url
 
         query = """SELECT COUNT(*)

@@ -66,7 +66,7 @@ class GuildConfig:
                 """
         await self.bot.db.execute(query, self.guild_id, self.webhook_id)
 
-class Bot(commands.Bot):
+class EmoteWizard(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
         intents.presences = False
@@ -162,12 +162,12 @@ class Bot(commands.Bot):
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
-        self.stickers_channel = self.get_channel(config.stickers_channel)
-        self.stickers_guild = self.get_guild(config.stickers_guild)
+        self.channel = self.get_channel(config.channel)
+        self.guild = self.get_guild(config.guild)
         self.console = bot.get_channel(config.console)
 
     def run(self):
         super().run(config.token)
 
-bot = Bot()
+bot = EmoteWizard()
 bot.run()
