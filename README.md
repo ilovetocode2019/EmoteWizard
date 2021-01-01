@@ -1,3 +1,2 @@
-# Stickers
-
-A Discord bot for creating stickers and using custom emojis anywhere.
+# Emote-Wizard
+A Discord bot that allows you to use custom emojis anywhere
