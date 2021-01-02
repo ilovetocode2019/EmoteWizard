@@ -212,7 +212,7 @@ class Emojis(commands.Cog):
         if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
             return await ctx.send("Aborting")
 
-        await config.set_webhook(webhook.id)
+        await config.set_webhook(webhook)
         await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="create", description="Creates a webhook for the bot")
@@ -231,7 +231,7 @@ class Emojis(commands.Cog):
             else:
                 return await ctx.send(f":x: I couldn't create a webhook for an unknown reason (error code {exc.code})")
 
-        await config.set_webhook(webhook.id)
+        await config.set_webhook(webhook)
         await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="unbind", description="Unbind the webhook")

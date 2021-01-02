@@ -56,8 +56,8 @@ class GuildConfig:
         except discord.HTTPException:
             return None
 
-    async def set_webhook(self, webhook_id):
-        self.webhook_id = webhook_id
+    async def set_webhook(self, webhook):
+        self.webhook_id = webhook.id if webhook else None
 
         query = """INSERT INTO guild_config (guild_id, webhook_id)
                    VALUES ($1, $2)
