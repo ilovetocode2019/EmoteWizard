@@ -82,7 +82,7 @@ class EmoteWizard(commands.Bot):
 
         self.config = config
         if not hasattr(config, "default_prefix"):
-            config.default_prefix = "s."
+            config.default_prefix = "e."
 
         if not os.path.isfile("prefixes.json"):
             logging.info("prefixes.json not found, creating...")
