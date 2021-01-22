@@ -169,5 +169,10 @@ class EmoteWizard(commands.Bot):
     def run(self):
         super().run(config.token)
 
+    async def logout(self):
+        await self.db.close()
+        await self.session.close()
+        super().logout()
+
 bot = EmoteWizard()
 bot.run()
