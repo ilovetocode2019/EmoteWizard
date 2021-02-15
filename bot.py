@@ -68,8 +68,7 @@ class GuildConfig:
 
 class EmoteWizard(commands.Bot):
     def __init__(self):
-        intents = discord.Intents.all()
-        intents.presences = False
+        intents = discord.Intents(guilds=True, emojis=True, messages=True, reactions=True)
         super().__init__(command_prefix=get_prefix, intents=intents)
         self.loop.create_task(self.prepare_bot())
 
