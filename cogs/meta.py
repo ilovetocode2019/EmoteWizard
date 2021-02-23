@@ -8,12 +8,17 @@ import asyncio
 import datetime
 import humanize
 
-from .utils import checks
+from .utils import checks, formats, menus
+
+class Prefix(commands.Converter):
+    async def convert(self, ctx, prefix):
+        if discord.utils.escape_mentions(prefix) != prefix:
+            raise commands.BadArgument("Prefix can't include a mention")
+        return prefix
 
 class HelpCommand(commands.MinimalHelpCommand):
     def get_command_signature(self, command):
         return "{0.clean_prefix}{1.qualified_name} {1.signature}".format(self, command)
-
 
 class Meta(commands.Cog):
     def __init__(self, bot):
@@ -38,8 +43,10 @@ class Meta(commands.Cog):
             perms_text = "\n".join([f"- {perm.replace('_', ' ').capitalize()}" for perm in error.missing_perms])
             await ctx.send(f":x: I am missing some permissions:\n {perms_text}") 
         elif isinstance(error, commands.errors.MissingRequiredArgument):
-            await ctx.send(f":x: You are missing a argument: `{error.param.name}`")
+            await ctx.send(f":x: You are missing a required argument: `{error.param.name}`")
         elif isinstance(error, commands.UserInputError):
+            await ctx.send(f":x: {error}")
+        elif isinstance(error, commands.ArgumentParsingError):
             await ctx.send(f":x: {error}")
         elif isinstance(error, commands.errors.CommandOnCooldown):
             await ctx.send(f"You are on cooldown. Try again in {formats.plural(int(error.retry_after)):second}.")
@@ -72,108 +79,77 @@ class Meta(commands.Cog):
 
     @commands.command(name="uptime", description="Check my uptime")
     async def uptime(self, ctx):
-        delta = datetime.datetime.utcnow()-self.bot.startup_time
+        delta = datetime.datetime.utcnow()-self.bot.uptime
         await ctx.send(f"I started up {humanize.naturaldelta(delta)} ago")
 
-    @commands.group(
-        description="View your prefixes",
-        invoke_without_command=True,
-        aliases=["prefixes"],
-    )
-    @commands.guild_only()
+    @commands.group(name="prefix", description="Manage custom prefixes", invoke_without_command=True)
     async def prefix(self, ctx):
-        prefixes = [self.bot.user.mention]
-        prefixes.extend(self.bot.guild_prefixes(ctx.guild))
-
-        em = discord.Embed(
-            name="Prefixes",
-            description="\n".join(prefixes),
-            color=discord.Color.blurple(),
-        )
-
-        await ctx.send(embed=em)
-
-    def update_prefixes(self, guild, prefixes):
-        """Update the prefixes for a guild"""
-        if not prefixes:
-            self.bot._guild_prefixes.pop(str(guild.id))
-
-        else:
-            self.bot._guild_prefixes[str(guild.id)] = prefixes
-
-        with open("prefixes.json", "w") as f:
-            json.dump(
-                self.bot._guild_prefixes,
-                f,
-                sort_keys=True,
-                indent=2,
-            )
+        await ctx.send_help(ctx.command)
 
     @prefix.command(name="add", description="Add a prefix")
-    @commands.guild_only()
-    @checks.has_permissions(manage_guild=True)
-    async def _add_prefix(self, ctx, prefix):
-        prefixes = self.bot.guild_prefixes(ctx.guild)
-
+    @commands.has_permissions(manage_guild=True)
+    async def prefix_add(self, ctx, *, prefix: Prefix):
+        prefixes = self.bot.get_guild_prefixes(ctx.guild)
         if prefix in prefixes:
-            return await ctx.send("You already have that prefix registered.")
+            return await ctx.send(":x: That prefix is already added")
+
+        if len(prefixes) > 10:
+            return await ctx.send(":x: You cannot have more than 10 custom prefixes")
 
         prefixes.append(prefix)
-        self.update_prefixes(ctx.guild, prefixes)
+        await self.bot.prefixes.add(ctx.guild.id, prefixes)
 
-        await ctx.send(f"Added prefix  `{prefix}`")
+        await ctx.send(f":white_check_mark: Added the prefix `{prefix}`")
 
     @prefix.command(name="remove", description="Remove a prefix")
-    @commands.guild_only()
-    @checks.has_permissions(manage_guild=True)
-    async def _remove_prefix(self, ctx, prefix):
-        prefixes = self.bot.guild_prefixes(ctx.guild)
-
-        bot_id = self.bot.user.id
-        if prefix in [f"<@{bot_id}", f"<@!{bot_id}>"]:
-            return await ctx.send("You cannot remove that prefix.")
-
+    @commands.has_permissions(manage_guild=True)
+    async def prefix_remove(self, ctx, *, prefix: Prefix):
+        prefixes = self.bot.get_guild_prefixes(ctx.guild)
         if prefix not in prefixes:
-            return await ctx.send(
-                "You don't have that prefix registered."
-            )
+            return await ctx.send(":x: That prefix is not added")
 
         prefixes.remove(prefix)
-        self.update_prefixes(ctx.guild, prefixes)
+        await self.bot.prefixes.add(ctx.guild.id, prefixes)
 
-        await ctx.send(f"Removed prefix `{prefix}`")
+        await ctx.send(f":white_check_mark: Removed the prefix `{prefix}`")
 
-    @prefix.command(name="default", description="Set the default prefix")
-    @commands.guild_only()
-    @checks.has_permissions(manage_guild=True)
-    async def _default_prefix(self, ctx, prefix):
-        prefixes = self.bot.guild_prefixes(ctx.guild)
-
+    @prefix.command(name="default", description="Set a prefix as the first prefix")
+    @commands.has_permissions(manage_guild=True)
+    async def prefix_default(self, ctx, *, prefix: Prefix):
+        prefixes = self.bot.get_guild_prefixes(ctx.guild)
         if prefix in prefixes:
             prefixes.remove(prefix)
 
-        prefixes.insert(0, prefix)
-        self.update_prefixes(ctx.guild, prefixes)
+        if len(prefixes) >= 10:
+            return await ctx.send(":x: You cannot have more than 10 prefixes")
 
-        await ctx.send(f"Set default prefix to `{prefix}`")
+        prefixes = [prefix] + prefixes
+        await self.bot.prefixes.add(ctx.guild.id, prefixes)
 
-    @prefix.command(name="reset", description="Reset the prefixes to default")
-    @commands.guild_only()
-    @checks.has_permissions(manage_guild=True)
-    async def _reset_prefix(self, ctx):
-        prefixes = self.bot.guild_prefixes(ctx.guild)
+        await ctx.send(f":white_check_mark: Set `{prefix}` as the default prefix")
 
-        if prefixes == [self.bot.config.default_prefix]:
-            return await ctx.send("This server is already using the default prefixes.")
-
-        result = await ctx.confirm("Are you sure you want to reset this server's prefixes?")
-
+    @prefix.command(name="clear", description="Clear all the prefixes in this server", aliases=["reset"])
+    @commands.has_permissions(manage_guild=True)
+    async def prefix_clear(self, ctx):
+        result = await menus.Confirm("Are you sure you want to clear all your prefixes?").prompt(ctx)
         if not result:
-            return await ctx.send("Aborted.")
+            return await ctx.send("Aborting")
 
-        self.update_prefixes(ctx.guild, None)
+        await self.bot.prefixes.add(ctx.guild.id, [])
+        await ctx.send(f":white_check_mark: Removed all prefixes")
 
-        await ctx.send("Reset prefixes")
+    @prefix.command(name="list", description="View the prefixes in this server")
+    async def prefix_list(self, ctx):
+        prefixes = await self.bot.get_prefix(ctx.message)
+        prefixes.pop(0)
+
+        em = discord.Embed(title="Prefixes", description="\n".join(prefixes), color=0x96c8da)
+        em.set_footer(text=f"{formats.plural(len(prefixes), end='es'):prefix}")
+        await ctx.send(embed=em)
+
+    @commands.command(name="prefixes", description="View the prefixes in this server")
+    async def prefixes(self, ctx):
+        await ctx.invoke(self.prefix_list)
 
     @commands.command(name="ignore", description="Disable/enable emoji replacing")
     @commands.is_owner()

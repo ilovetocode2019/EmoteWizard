@@ -1,3 +1,4 @@
 *.pyc
-config.py
-prefixes.json
+*.json
+
+/config.py

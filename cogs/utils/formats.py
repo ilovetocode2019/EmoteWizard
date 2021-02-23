@@ -1,12 +1,13 @@
 class plural:
-    def __init__(self, value):
+    def __init__(self, value, *, end="s"):
         self.value = value
+        self.end = end
 
     def __format__(self, format_spec):
         if self.value == 1:
             return f"{self.value} {format_spec}"
         else:
-            return f"{self.value} {format_spec}s"
+            return f"{self.value} {format_spec}{self.end}"
 
 def join(iterable, seperator=", ", last="or"):
     if len(iterable) == 0:

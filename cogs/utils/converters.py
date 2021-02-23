@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 
+import re
+
 class MessageConverter(commands.Converter):
     async def convert(self, ctx, arg):
         # Attempt to convert the message normally
@@ -66,7 +68,7 @@ class WebhookConverter(commands.Converter):
         # Otherwise attempt to get the ID from the URL using regex
         matches = re.findall("https://(?:(?:ptb|canary)\.)?discord(?:app)?.com/api/webhooks/([0-9]+)/.+", arg)
         if matches:
-            webhook_id =  int(matches[0])
+            webhook_id = int(matches[0])
 
         # Attempt to get the webhook by ID
         webhook = discord.utils.get(webhooks, id=webhook_id)
