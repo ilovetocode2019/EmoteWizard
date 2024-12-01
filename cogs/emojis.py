@@ -76,7 +76,13 @@ class Emojis(commands.Cog):
 
             # Prepare the files, send the webhook, and delete the message
             files = [discord.File(BytesIO(await x.read()), filename=x.filename, spoiler=x.is_spoiler()) for x in message.attachments]
-            reposted = await webhook.send(content=discord.utils.escape_mentions(message_content), files=files, username=message.author.display_name, avatar_url=message.author.avatar_url, wait=True)
+            reposted = await webhook.send(
+                content=discord.utils.escape_mentions(message_content),
+                files=files,
+                username=message.author.display_name,
+                avatar_url=message.author.avatar.url,
+                wait=True
+            )
 
             self.bot.reposted_messages[reposted.id] = message
             await message.delete()
@@ -102,7 +108,7 @@ class Emojis(commands.Cog):
             await reaction.remove(user)
 
             await user.send("What would you like to edit your message to?")
-            message = await self.bot.wait_for("message", check=lambda message: message.channel.id == user.dm_channel.id and message.author.id == user.id)
+            message = await self.bot.wait_for("message", check=lambda message: message.channel == user.dm_channel and message.author == user)
             content = message.content
 
             webhook = await self.bot.fetch_webhook(reaction.message.webhook_id)
@@ -279,7 +285,7 @@ class Emojis(commands.Cog):
                 return await ctx.send(f":x: I couldn't add that reaction for an unknown reason (error code {exc.code})", delete_after=5)
 
         def check(event):
-            return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji.id == emoji.id
+            return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji == emoji
         try:
             await self.bot.wait_for("raw_reaction_add", check=check, timeout=30)
         except asyncio.TimeoutError:
@@ -301,5 +307,5 @@ class Emojis(commands.Cog):
         pages = menus.MenuPages(source=EmojiPages(results), clear_reactions_after=True)
         await pages.start(ctx)
 
-def setup(bot):
-    bot.add_cog(Emojis(bot))
+async def setup(bot):
+    await bot.add_cog(Emojis(bot))

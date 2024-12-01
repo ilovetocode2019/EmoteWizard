@@ -161,5 +161,5 @@ class Meta(commands.Cog):
             self.bot.config.ignore = True
             await ctx.send(":white_check_mark: Disabled emoji replacing")
 
-def setup(bot):
-    bot.add_cog(Meta(bot))
+async def setup(bot):
+    await bot.add_cog(Meta(bot))

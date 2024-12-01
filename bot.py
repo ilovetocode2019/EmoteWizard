@@ -60,19 +60,27 @@ class GuildConfig:
 
 class EmoteWizard(commands.Bot):
     def __init__(self):
-        intents = discord.Intents(guilds=True, emojis=True, messages=True, reactions=True)
+        intents = discord.Intents(
+            guilds=True,
+            emojis=True,
+            messages=True,
+            message_content=True,
+            reactions=True
+        )
         super().__init__(command_prefix=get_prefix, intents=intents)
 
+    async def setup_hook(self):
         self.uptime = datetime.datetime.utcnow()
         self.prefixes = config.Config("prefixes.json")
         self.reposted_messages = {}
 
-        self.load_extension("jishaku")
+        await self.load_extension("jishaku")
+
         for cog in extensions:
             try:
-                self.load_extension(cog)
+                await self.load_extension(cog)
             except Exception as exc:
-                log.info(f"Couldn't load {cog}")
+                logging.info(f"Couldn't load {cog}")
                 traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
 
     @cache.cache()

@@ -68,9 +68,9 @@ class Replies(commands.Cog):
         emoji = self.bot.avatar_emojis.get(message.author.id)
 
         # If the emoji does not exist or the emoji is an outdated avatar, make a new emoji
-        if not emoji or emoji["avatar_url"] != str(message.author.avatar_url) or not self.bot.get_emoji(emoji["emoji_id"]):
+        if not emoji or emoji["avatar_url"] != str(message.author.avatar.url) or not self.bot.get_emoji(emoji["emoji_id"]):
             # If the emoji is outdated, delete it
-            if emoji and emoji["avatar_url"] != str(message.author.avatar_url):
+            if emoji and emoji["avatar_url"] != str(message.author.avatar.url):
                 emoji = self.bot.get_emoji(emoji["emoji_id"])
                 await emoji.delete()
 
@@ -100,10 +100,15 @@ class Replies(commands.Cog):
                        ON CONFLICT (user_id)
                        DO UPDATE SET emoji_id=$2, avatar_url=$3, last_used=$4;
                     """
-            await self.bot.db.execute(query, message.author.id, emoji.id, str(message.author.avatar_url), datetime.datetime.utcnow())
+            await self.bot.db.execute(query, message.author.id, emoji.id, str(message.author.avatar.url), datetime.datetime.utcnow())
 
             # Update cache
-            self.bot.avatar_emojis[message.author.id] = {"user_id": ctx.author.id, "emoji_id": emoji.id, "avatar_url": str(message.author.avatar_url), "last_used": datetime.datetime.utcnow()}
+            self.bot.avatar_emojis[message.author.id] = {
+                "user_id": ctx.author.id,
+                "emoji_id": emoji.id,
+                "avatar_url": message.author.avatar.url,
+                "last_used": datetime.datetime.utcnow()
+            }
 
         # Otherwise just fetch the emoji and update the row
         else:
@@ -130,12 +135,18 @@ class Replies(commands.Cog):
         if webhook.channel_id != ctx.channel.id:
             await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
 
-        message = await webhook.send(content=content, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url, allowed_mentions=discord.AllowedMentions(users=mention), wait=True)
+        message = await webhook.send(
+            content=content,
+            username=ctx.author.display_name,
+            avatar_url=ctx.author.avatar.url,
+            allowed_mentions=discord.AllowedMentions(users=mention),
+            wait=True
+        )
         self.bot.reposted_messages[message.id] = reply
 
     async def create_avatar_emoji(self, user):
         # Fetch the avatar
-        async with self.bot.session.get(str(user.avatar_url_as(format="png"))) as resp:
+        async with self.bot.session.get(str(user.avatar.url_as(format="png"))) as resp:
             avatar = io.BytesIO(await resp.read())
             avatar = Image.open(avatar)
 
@@ -158,5 +169,5 @@ class Replies(commands.Cog):
 
         return avatar
 
-def setup(bot):
-    bot.add_cog(Replies(bot))
+async def setup(bot):
+    await bot.add_cog(Replies(bot))

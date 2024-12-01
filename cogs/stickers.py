@@ -28,7 +28,12 @@ class Stickers(commands.Cog):
                 await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
 
             files = [discord.File(BytesIO(await x.read()), filename=x.filename, spoiler=x.is_spoiler()) for x in ctx.message.attachments]
-            await webhook.send(content=sticker["content_url"], files=files, username=ctx.author.display_name, avatar_url=ctx.author.avatar_url)
+            await webhook.send(
+                content=sticker["content_url"],
+                files=files,
+                username=ctx.author.display_name,
+                avatar_url=ctx.author.avatar.url
+            )
             await ctx.message.delete()
         else:
             await ctx.send(sticker["content_url"])
@@ -69,5 +74,5 @@ class Stickers(commands.Cog):
             return await ctx.send(":x: That is not a sticker or you do not own it")
         await ctx.send(":white_check_mark: Deleted your sticker")
 
-def setup(bot):
-    bot.add_cog(Stickers(bot))
+async def setup(bot):
+    await bot.add_cog(Stickers(bot))

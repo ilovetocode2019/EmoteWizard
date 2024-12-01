@@ -8,7 +8,6 @@ class Config:
 
     def __init__(self, filename):
         self.filename = filename
-        self.loop = loop
         self.lock = asyncio.Lock()
 
         self.load()

@@ -1,50 +1,62 @@
-import discord
-from discord.ext import commands, tasks
-
 import asyncio
-import traceback
-import psutil
-import humanize
 import importlib
-import re
+import io
+import logging
 import os
-import sys
+import re
 import subprocess
+import sys
 import time
 import traceback
-import io
-import pkg_resources
-from jishaku import codeblocks, paginators, shell
+
+import discord
+import humanize
+import psutil
+from discord.ext import commands, tasks
+from jishaku import codeblocks
 
 from .utils import formats, menus
+
+log = logging.getLogger("robo_coder.admin")
+
 
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.hidden = True
 
-        self.outdated_packages = []
-        self.update_packages_loop.start()
-
-    def cog_unload(self):
-        self.update_packages_loop.cancel()
-
     async def cog_check(self, ctx):
         return await self.bot.is_owner(ctx.author)
 
     @commands.command(name="reload", description="Reload an extension")
-    async def reload(self, ctx, extension):
-        try:
-            self.bot.reload_extension(extension)
-            await ctx.send(f":repeat: Reloaded `{extension}`")
-        except commands.ExtensionError as exc:
-            full = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, 1))
-            await ctx.send(f":warning: Couldn't reload `{extension}`\n```py\n{full}```")
+    async def reload(self, ctx, *extensions):
+        extensions = extensions or list(self.bot.extensions)
+
+        if len(extensions) == 1:
+            extension = extensions[0]
+
+            try:
+                await self.bot.reload_extension(extension)
+                await ctx.send(f":repeat: Reloaded `{extension}`")
+            except commands.ExtensionError as exc:
+                full = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, 1))
+                await ctx.send(f":warning: Couldn't reload `{extension}`\n```py\n{full}```")
+        else:
+            message = []
+            for extension in extensions:
+                try:
+                    await self.bot.reload_extension(extension)
+                    message.append(f":repeat: Reloaded `{extension}`")
+                except commands.ExtensionError as exc:
+                    full = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, 1))
+                    message.append(f":warning: Couldn't reload `{extension}`")
+
+            await ctx.send("\n\n".join(message))
 
     @commands.command(name="load", description="Load an extension")
     async def load(self, ctx, extension):
         try:
-            self.bot.load_extension(extension)
+            await self.bot.load_extension(extension)
             await ctx.send(f":inbox_tray: Loaded `{extension}`")
         except commands.ExtensionError as exc:
             full = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, 1))
@@ -53,13 +65,13 @@ class Admin(commands.Cog):
     @commands.command(name="unload", description="Unload an extension")
     async def unload(self, ctx, extension):
         try:
-            self.bot.unload_extension(extension)
-            await ctx.send(f":out_tray: Unloaded `{extension}`")
+            await self.bot.unload_extension(extension)
+            await ctx.send(f":outbox_tray: Unloaded `{extension}`")
         except commands.ExtensionError as exc:
             full = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, 1))
             await ctx.send(f":warning: Couldn't unload `{extension}`\n```py\n{full}```")
 
-    @commands.command(name="update", description="Update the bot")
+    @commands.command(name="update", description="Update the bot from GitHub")
     async def update(self, ctx):
         async with ctx.typing():
             # Run git pull to update bot
@@ -106,7 +118,7 @@ class Admin(commands.Cog):
             else:
                 try:
                     try:
-                        self.bot.reload_extension(module)
+                        await self.bot.reload_extension(module)
                     except commands.ExtensionNotLoaded:
                         self.bot.load_extension(module)
                     results.append((True, module))
@@ -175,57 +187,11 @@ class Admin(commands.Cog):
 
         await ctx.send(embed=em)
 
-    @commands.command(name="logout", description="Logout the bot")
+    @commands.command(name="logout", description="Logs out the bot")
     @commands.is_owner()
     async def logout(self, ctx):
         await ctx.send(":wave: Logging out")
-        await self.bot.logout()
+        await self.bot.close()
 
-    async def get_outdated_packages(self, wait=None):
-        installed = [
-            "jishaku",
-            "asyncpg",
-            "humanize",
-            "Pillow",
-        ]
-
-        outdated = []
-        for package in installed:
-            try:
-                current_version = pkg_resources.get_distribution(package).version
-                async with self.bot.session.get(f"https://pypi.org/pypi/{package}/json") as resp:
-                    data = await resp.json()
-
-                pypi_version = data["info"]["version"]
-                if current_version != pypi_version:
-                    outdated.append((package, current_version, pypi_version))
-            except Exception as exc:
-                traceback.print_exception(type(exc), exc, exc.__traceback__,file=sys.stderr)
-
-            if wait:
-                await asyncio.sleep(wait)
-
-        return outdated
-
-    @tasks.loop(hours=10)
-    async def update_packages_loop(self):
-        """Checks for outdated packages every 10 hours."""
-
-        outdated = await self.get_outdated_packages(wait=5)
-        self.outdated_packages = outdated
-
-        if outdated:
-            joined = " ".join([package[0] for package in outdated])
-            em = discord.Embed(title="Outdated Packages", description=f"Update with `jsk sh {sys.executable} -m pip install -U {joined}`\n", color=0x96c8da)
-
-            for package in outdated:
-                em.description += f"\n{package[0]} (Current: {package[1]} | Latest: {package[2]})"
-
-            await self.bot.console.send(embed=em)
-
-    @update_packages_loop.before_loop
-    async def before_update_packages_loop(self):
-        await self.bot.wait_until_ready()
-
-def setup(bot):
-    bot.add_cog(Admin(bot))
+async def setup(bot):
+    await bot.add_cog(Admin(bot))
