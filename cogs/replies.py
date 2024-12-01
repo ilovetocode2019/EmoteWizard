@@ -7,34 +7,7 @@ import datetime
 import typing
 from PIL import Image, ImageDraw, ImageOps
 
-from .utils import converters, formats
-
-class Reply:
-    def __init__(self, message, reply, author, emoji, mention):
-        self.message = message
-        self.reply = reply
-        self.author = author
-        self.emoji = emoji
-        self.mention = mention
-
-    def __str__(self):
-        author = f"> {self.emoji} {self.message.author.mention}{f'<:bottag:779737977856720906>' if self.message.author.bot else ''}"
-        reply = f"> [Jump to message](<{self.message.jump_url}>) \n{discord.utils.escape_mentions(self.reply)}"
-
-        if self.message.content:
-            content = "\n".join([f"> {discord.utils.escape_mentions(line)}" for line in self.message.content.split("\n")])
-        else:
-            items = []
-            if self.message.embeds:
-                items.append("embed")
-            if self.message.attachments:
-                items.append("attachment")
-            if self.message.stickers:
-                items.append("sticker")
-
-            content = f"> Jump to view {formats.join(items, last='and')} <:imageicon:779737947121123349>"
-
-        return f"{author} \n{content} \n{reply}"
+from .utils import converters, faked, formats
 
 class Replies(commands.Cog):
     def __init__(self, bot):
@@ -43,21 +16,15 @@ class Replies(commands.Cog):
     @commands.group(name="reply", description="Reply to a message", invoke_without_command=True)
     @commands.guild_only()
     @commands.bot_has_permissions(manage_messages=True, manage_webhooks=True)
-    async def reply(self, ctx, channel: typing.Optional[discord.TextChannel], message: converters.MessageConverter, *, reply):
-        channel = channel if isinstance(channel, discord.TextChannel) else ctx.channel
-        if not message:
-            messages = await channel.history(limit=1, before=ctx.message).flatten()
-            if not messages:
-                return await ctx.send(":x: I couldn't find a message to reply to")
-            message = messages[0]
-
-        mention = True
-        if reply.startswith("--no-mention"):
+    async def reply(self, ctx, message: converters.MessageConverter, *, content):
+        if content.startswith("--no-mention"):
             mention = False
-            reply = reply[len("--no-mention"):]
-        elif reply.startswith("-n"):
+            content = content[len("--no-mention"):]
+        elif content.startswith("-n"):
             mention = False
-            reply = reply[len("-n"):]
+            content = content[len("-n"):]
+        else:
+            mention = True
 
         config = await self.bot.get_webhook_config(ctx.guild)
         webhook = await config.webhook()
@@ -68,9 +35,9 @@ class Replies(commands.Cog):
         emoji = self.bot.avatar_emojis.get(message.author.id)
 
         # If the emoji does not exist or the emoji is an outdated avatar, make a new emoji
-        if not emoji or emoji["avatar_url"] != str(message.author.avatar.url) or not self.bot.get_emoji(emoji["emoji_id"]):
+        if not emoji or emoji["avatar_url"] != message.author.display_avatar.url or not self.bot.get_emoji(emoji["emoji_id"]):
             # If the emoji is outdated, delete it
-            if emoji and emoji["avatar_url"] != str(message.author.avatar.url):
+            if emoji and emoji["avatar_url"] != message.author.display_avatar.url:
                 emoji = self.bot.get_emoji(emoji["emoji_id"])
                 await emoji.delete()
 
@@ -100,13 +67,19 @@ class Replies(commands.Cog):
                        ON CONFLICT (user_id)
                        DO UPDATE SET emoji_id=$2, avatar_url=$3, last_used=$4;
                     """
-            await self.bot.db.execute(query, message.author.id, emoji.id, str(message.author.avatar.url), datetime.datetime.utcnow())
+            await self.bot.db.execute(
+                query,
+                message.author.id,
+                emoji.id,
+                message.author.display_avatar.url,
+                datetime.datetime.utcnow()
+            )
 
             # Update cache
             self.bot.avatar_emojis[message.author.id] = {
                 "user_id": ctx.author.id,
                 "emoji_id": emoji.id,
-                "avatar_url": message.author.avatar.url,
+                "avatar_url": message.author.display_avatar.url,
                 "last_used": datetime.datetime.utcnow()
             }
 
@@ -125,30 +98,32 @@ class Replies(commands.Cog):
             self.bot.avatar_emojis[message.author.id]["last_used"] = datetime.datetime.utcnow()
 
         # Prepare content
-        reply = Reply(message, reply, ctx.author, emoji, mention)
-        content = str(reply)
+        reply = faked.Reply(bot=self.bot, quote=message, emoji=emoji, mention=mention)
+        formatted_content, _ = self.bot.replace_emojis(reply.format_with(content))
 
-        # Send message
         await ctx.message.delete()
 
         # Update webhook if needed
-        if webhook.channel_id != ctx.channel.id:
-            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": ctx.channel.id})
+        if webhook.channel != ctx.channel:
+            await webhook.edit(channel=ctx.channel)
 
-        message = await webhook.send(
-            content=content,
+        replacement = await webhook.send(
+            content=formatted_content,
             username=ctx.author.display_name,
-            avatar_url=ctx.author.avatar.url,
-            allowed_mentions=discord.AllowedMentions(users=mention),
+            avatar_url=ctx.author.display_avatar.url,
+            allowed_mentions=reply.allowed_mentions,
             wait=True
         )
-        self.bot.reposted_messages[message.id] = reply
+
+        self.bot.faked_messages[replacement.id] = faked.FakedMessage(
+            original=ctx.message,
+            replacement=replacement,
+            reply=reply
+        )
 
     async def create_avatar_emoji(self, user):
-        # Fetch the avatar
-        async with self.bot.session.get(str(user.avatar.url_as(format="png"))) as resp:
-            avatar = io.BytesIO(await resp.read())
-            avatar = Image.open(avatar)
+        avatar = io.BytesIO(await user.display_avatar.with_format("png").read())
+        avatar = Image.open(avatar).convert("RGBA")
 
         partial = functools.partial(self.round_avatar, avatar)
         avatar = await self.bot.loop.run_in_executor(None, partial)

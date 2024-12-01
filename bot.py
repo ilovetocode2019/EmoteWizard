@@ -1,14 +1,15 @@
 import discord
 from discord.ext import commands
 
-import logging
 import aiohttp
 import asyncpg
-import os
-import json
 import datetime
-import traceback
+import json
+import logging
+import os
+import re
 import sys
+import traceback
 
 from cogs.utils import cache, config
 
@@ -65,14 +66,18 @@ class EmoteWizard(commands.Bot):
             emojis=True,
             messages=True,
             message_content=True,
-            reactions=True
+            reactions=True,
+            webhooks=True
         )
         super().__init__(command_prefix=get_prefix, intents=intents)
 
     async def setup_hook(self):
         self.uptime = datetime.datetime.utcnow()
         self.prefixes = config.Config("prefixes.json")
-        self.reposted_messages = {}
+        self.faked_messages = {}
+
+        if not os.path.exists("stickers"):
+            os.mkdir("stickers")
 
         await self.load_extension("jishaku")
 
@@ -109,7 +114,7 @@ class EmoteWizard(commands.Bot):
                    CREATE TABLE IF NOT EXISTS stickers (
                    owner_id BIGINT,
                    name TEXT,
-                   content_url TEXT
+                   content_path TEXT
                    );
 
                    CREATE TABLE IF NOT EXISTS avatar_emojis (
@@ -128,7 +133,6 @@ class EmoteWizard(commands.Bot):
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
-        self.channel = self.get_channel(self.config.channel)
         self.guild = self.get_guild(self.config.guild)
         self.console = bot.get_channel(self.config.console)
 
@@ -144,6 +148,34 @@ class EmoteWizard(commands.Bot):
 
     def get_guild_prefixes(self, guild):
         return self.prefixes.get(guild.id, ["e!", "e."])
+
+    def replace_emojis(self, content):
+        replaced = content
+
+        # Look for 'emojis' in the message
+        emojis = re.finditer("\;[^;]+\;", content)
+        possible_emojis = re.finditer("\:\w+:", content)
+
+        # Iter through the found emois name
+        found = []
+
+        # Replace emojis using ;emoji;
+        for name in emojis:
+            emoji = discord.utils.get(self.emojis, name=name.group(0).replace(";", ""))
+            if emoji and str(emoji) not in found:
+                replaced = replaced.replace(name.group(0), str(emoji))
+                found.append(str(emoji))
+
+        # Replace emojis using :emoji:
+        for name in possible_emojis:
+            emoji = discord.utils.get(self.emojis, name=name.group(0).replace(":", ""))
+            span = name.span(0)
+            full_emoji = re.search(".*<a?", content[:span[0]]) and re.search("\d+>.*", content[span[1]+1:])
+            if emoji and str(emoji) not in found and not full_emoji:
+                replaced = replaced.replace(name.group(0), str(emoji))
+                found.append(str(emoji))
+
+        return replaced, found
 
     def run(self):
         super().run(self.config.token)

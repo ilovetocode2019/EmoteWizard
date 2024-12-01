@@ -14,7 +14,7 @@ class MessageConverter(commands.Converter):
 
         # Fetch history
         channel = ctx.args[-1] if isinstance(ctx.args[-1], discord.TextChannel) else ctx.channel
-        history = await channel.history(limit=200, before=ctx.message).flatten()
+        history = [message async for message in channel.history(limit=200, before=ctx.message)]
 
         # Get message by content
         message = discord.utils.get(history, content=arg)

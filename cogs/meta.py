@@ -18,7 +18,7 @@ class Prefix(commands.Converter):
 
 class HelpCommand(commands.MinimalHelpCommand):
     def get_command_signature(self, command):
-        return "{0.clean_prefix}{1.qualified_name} {1.signature}".format(self, command)
+        return "{0.clean_prefix}{1.qualified_name} {1.signature}".format(self.context, command)
 
 class Meta(commands.Cog):
     def __init__(self, bot):
@@ -62,7 +62,8 @@ class Meta(commands.Cog):
             em.description += f"\nLink: [Jump]({ctx.message.jump_url})"
             em.description += f"\n\n```py\n{error}```\n"
 
-            await self.bot.console.send(embed=em)
+            if self.bot.console:
+                await self.bot.console.send(embed=em)
 
     @commands.command(name="invite", description="Get an invite link")
     async def invite(self, ctx):

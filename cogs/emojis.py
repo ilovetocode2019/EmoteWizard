@@ -3,13 +3,11 @@ from discord.ext import commands
 from discord.ext import menus
 
 import asyncio
-import re
 import typing
 from io import BytesIO
 
-from .replies import Reply
 from .utils.menus import Confirm
-from .utils import converters
+from .utils import converters, faked
 
 def finder(text, collection, *, key=None, lazy=True):
     suggestions = []
@@ -53,11 +51,12 @@ class Emojis(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         context = await self.bot.get_context(message)
+
         if message.author.bot or self.bot.config.ignore or context.valid:
             return
 
-        message_content, found = self.replace_emojis(message.content)
-        # If no emojis were found, ignore
+        replaced_content, found = self.bot.replace_emojis(message.content)
+
         if len(found) == 0:
             return
 
@@ -70,21 +69,30 @@ class Emojis(commands.Cog):
 
         # If a webhook is configured, send it through the webhook
         if webhook:
-            # make an HTTP request to update the channel if needed
-            if webhook.channel_id != message.channel.id:
-                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}", webhook_id=webhook.id), json={"channel_id": message.channel.id})
+            if webhook.channel != message.channel:
+                await webhook.edit(channel=message.channel)
 
-            # Prepare the files, send the webhook, and delete the message
-            files = [discord.File(BytesIO(await x.read()), filename=x.filename, spoiler=x.is_spoiler()) for x in message.attachments]
-            reposted = await webhook.send(
-                content=discord.utils.escape_mentions(message_content),
+            files = [
+                discord.File(
+                    BytesIO(await x.read()),
+                    filename=x.filename,
+                    spoiler=x.is_spoiler()
+                )
+            for x in message.attachments]
+
+            replacement = await webhook.send(
+                content=discord.utils.escape_mentions(replaced_content),
                 files=files,
                 username=message.author.display_name,
-                avatar_url=message.author.avatar.url,
+                avatar_url=message.author.display_avatar.url,
                 wait=True
             )
 
-            self.bot.reposted_messages[reposted.id] = message
+            self.bot.faked_messages[replacement.id] = faked.FakedMessage(
+                original=message,
+                replacement=replacement
+            )
+
             await message.delete()
 
         # Otherwise just send the found emojis through the bot account
@@ -93,16 +101,14 @@ class Emojis(commands.Cog):
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
-        original = self.bot.reposted_messages.get(reaction.message.id)
+        faked = self.bot.faked_messages.get(reaction.message.id)
 
-        if not original:
-            return
-        if original.author.id != user.id:
+        if not faked or faked.original.author != user:
             return
 
         if reaction.emoji == "\N{CROSS MARK}" and reaction.message.guild.me.guild_permissions.manage_messages:
-            self.bot.reposted_messages.pop(reaction.message.id)
-            await reaction.message.delete()
+            await faked.replacement.delete()
+            self.bot.faked_messages.pop(reaction.message.id)
 
         elif (reaction.emoji == "\N{MEMO}" or reaction.emoji == "\N{PENCIL}\N{VARIATION SELECTOR-16}") and reaction.message.guild.me.guild_permissions.manage_webhooks:
             await reaction.remove(user)
@@ -111,47 +117,16 @@ class Emojis(commands.Cog):
             message = await self.bot.wait_for("message", check=lambda message: message.channel == user.dm_channel and message.author == user)
             content = message.content
 
-            webhook = await self.bot.fetch_webhook(reaction.message.webhook_id)
-
-            if isinstance(original, Reply):
-                original.reply = content
-                allowed_mentions = {"parse": ["users"] if original.mention else []}
-                data = {"content": str(original), "allowed_mentions": allowed_mentions}
-                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{reaction.message.id}"), json=data)
-            elif isinstance(original, discord.Message):
-                message_content, found = self.replace_emojis(content)
-                data = {"content": discord.utils.escape_markdown(message_content)}
-                await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{reaction.message.id}"), json=data)
+            if faked.reply:
+                await faked.replacement.edit(
+                    content=faked.reply.format_with(content),
+                    allowed_mentions=faked.reply.allowed_mentions
+                )
+            elif not faked.is_sticker:
+                formatted_content, _ = self.bot.replace_emojis(content)
+                await faked.replacement.edit(content=formatted_content)
 
             await message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
-
-    def replace_emojis(self, content):
-        replaced = content
-
-        # Look for 'emojis' in the message
-        emojis = re.finditer("\;[^;]+\;", content)
-        possible_emojis = re.finditer("\:\w+:", content)
-
-        # Iter through the found emois name
-        found = []
-
-        # Replace emojis using ;emoji;
-        for name in emojis:
-            emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(";", ""))
-            if emoji and str(emoji) not in found:
-                replaced = replaced.replace(name.group(0), str(emoji))
-                found.append(str(emoji))
-
-        # Replace emojis using :emoji:
-        for name in possible_emojis:
-            emoji = discord.utils.get(self.bot.emojis, name=name.group(0).replace(":", ""))
-            span = name.span(0)
-            full_emoji = re.search(".*<a?", content[:span[0]]) and re.search("\d+>.*", content[span[1]+1:])
-            if emoji and str(emoji) not in found and not full_emoji:
-                replaced = replaced.replace(name.group(0), str(emoji))
-                found.append(str(emoji))
-
-        return replaced, found
 
     @commands.command(name="edit", description="Edit a reposted message")
     @commands.guild_only()
@@ -162,25 +137,23 @@ class Emojis(commands.Cog):
         except discord.HTTPException:
             pass
 
-        original = self.bot.reposted_messages.get(message.id)
-        webhook = await self.bot.fetch_webhook(message.webhook_id)
+        faked = self.bot.faked_messages.get(message.id)
 
-        if not original or not webhook:
-            return await ctx.send(":x: This message is unable to be edited", delete_after=5)
-        if original.author.id != ctx.author.id:
-            return await ctx.send(":x: You did not post this message", delete_after=5)
+        if not faked.original or faked.original.author != ctx.author:
+            return await ctx.send(":x: This message cannot be edited", delete_after=5)
+        elif faked.original.author != ctx.author:
+            return await ctx.send(":x: You are not the author of this message", delete_after=5)
 
-        if isinstance(original, Reply):
-            original.reply = content
-            allowed_mentions = {"parse": ["users"] if original.mention else []}
-            data = {"content": str(original), "allowed_mentions": allowed_mentions}
-            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
-        elif isinstance(original, discord.Message):
-            message_content, found = self.replace_emojis(content)
-            data = {"content": discord.utils.escape_markdown(message_content)}
-            await self.bot.http.request(discord.http.Route("PATCH", f"/webhooks/{webhook.id}/{webhook.token}/messages/{message.id}"), json=data)
+        if faked.reply:
+            await faked.replacement.edit(
+                content=faked.reply.format_with(content),
+                allowed_mentions=faked.reply.allowed_mentions
+            )
+        elif faked.is_sticker:
+            return await ctx.send(":x: Stickers cannot be edited", delete_after=5)
         else:
-            await ctx.send(":x: This message is unable to be edited", delete_after=5)
+            formatted_content, _ = self.bot.replace_emojis(content)
+            await faked.replacement.edit(content=formatted_content)
 
     @commands.command(name="delete", description="Delete a reposted message")
     @commands.guild_only()
@@ -188,15 +161,15 @@ class Emojis(commands.Cog):
     async def delete(self, ctx, message: discord.Message):
         await ctx.message.delete()
 
-        original = self.bot.reposted_messages.get(message.id)
+        faked = self.bot.faked_messages.get(message.id)
 
-        if not original:
-            return await ctx.send(":x: This message is unable to be deleted", delete_after=5)
-        if original.author.id != ctx.author.id:
-            return await ctx.send(":x: You did not post this message", delete_after=5)
+        if not faked:
+            return await ctx.send(":x: This message cannot be deleted", delete_after=5)
+        if faked.original.author != ctx.author:
+            return await ctx.send(":x: You are not the author of this message", delete_after=5)
 
-        self.bot.reposted_messages.pop(message.id)
-        await message.delete()
+        await faked.replacement.delete()
+        self.bot.faked_messages.pop(message.id)
 
     @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
     @commands.has_permissions(manage_webhooks=True)
