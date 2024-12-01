@@ -64,7 +64,7 @@ class EmoteWizard(commands.Bot):
         super().__init__(command_prefix=get_prefix, intents=intents)
 
         self.uptime = datetime.datetime.utcnow()
-        self.prefixes = config.Config("prefixes.json", loop=self.loop)
+        self.prefixes = config.Config("prefixes.json")
         self.reposted_messages = {}
 
         self.load_extension("jishaku")

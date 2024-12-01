@@ -6,10 +6,10 @@ import itertools
 class Config:
     """Represents a configuration file."""
 
-    def __init__(self, filename, *, loop=None):
+    def __init__(self, filename):
         self.filename = filename
         self.loop = loop
-        self.lock = asyncio.Lock(loop=loop)
+        self.lock = asyncio.Lock()
 
         self.load()
 
