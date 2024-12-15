@@ -188,10 +188,18 @@ class Admin(commands.Cog):
         await ctx.send(embed=em)
 
     @commands.command(name="logout", description="Logs out the bot")
-    @commands.is_owner()
     async def logout(self, ctx):
         await ctx.send(":wave: Logging out")
         await self.bot.close()
+
+    @commands.command(name="ignore", description="Disable/enable emoji replacing")
+    async def ignore(self, ctx):
+        if self.bot.config.ignore:
+            self.bot.config.ignore = False
+            await ctx.send(":white_check_mark: Enabled emoji replacing")
+        else:
+            self.bot.config.ignore = True
+            await ctx.send(":white_check_mark: Disabled emoji replacing")
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))

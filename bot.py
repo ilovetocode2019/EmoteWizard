@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 import aiohttp
@@ -69,7 +70,12 @@ class EmoteWizard(commands.Bot):
             reactions=True,
             webhooks=True
         )
-        super().__init__(command_prefix=get_prefix, intents=intents)
+
+        super().__init__(
+            command_prefix=get_prefix,
+            intents=intents,
+            allowed_installs=app_commands.AppInstallationType(guild=True, user=False)
+        )
 
     async def setup_hook(self):
         self.uptime = datetime.datetime.utcnow()
@@ -78,6 +84,41 @@ class EmoteWizard(commands.Bot):
 
         if not os.path.exists("stickers"):
             os.mkdir("stickers")
+
+        self.session = aiohttp.ClientSession()
+
+        async def init(conn):
+            await conn.set_type_codec(
+                "jsonb",
+                schema="pg_catalog",
+                encoder=json.dumps,
+                decoder=json.loads,
+                format="text"
+            )
+        self.db = await asyncpg.create_pool(self.config.sql, init=init)
+
+        query = """CREATE TABLE IF NOT EXISTS guild_config (
+                   guild_id BIGINT PRIMARY KEY,
+                   webhook_id BIGINT
+                   );
+
+                   CREATE TABLE IF NOT EXISTS stickers (
+                   owner_id BIGINT,
+                   name TEXT UNIQUE,
+                   content_path TEXT
+                   );
+
+                   CREATE TABLE IF NOT EXISTS avatar_emojis (
+                   user_id BIGINT PRIMARY KEY,
+                   emoji_id BIGINT,
+                   avatar_url TEXT,
+                   last_used TIMESTAMP DEFAULT (now() at time zone 'utc')
+                   );
+                """
+        await self.db.execute(query)
+
+        avatar_emojis = await pool.fetch("SELECT * FROM avatar_emojis;")
+        self.avatar_emojis = {emoji["user_id"]: dict(emoji) for emoji in avatar_emojis}
 
         await self.load_extension("jishaku")
 
@@ -101,47 +142,10 @@ class EmoteWizard(commands.Bot):
 
         return GuildConfig.from_record(dict(record), self)
 
-    async def create_pool(self):
-        async def init(conn):
-            await conn.set_type_codec("jsonb", schema="pg_catalog", encoder=json.dumps, decoder=json.loads, format="text",)
-        pool = await asyncpg.create_pool(self.config.sql, init=init)
-
-        query = """CREATE TABLE IF NOT EXISTS guild_config (
-                   guild_id BIGINT PRIMARY KEY,
-                   webhook_id BIGINT
-                   );
-
-                   CREATE TABLE IF NOT EXISTS stickers (
-                   owner_id BIGINT,
-                   name TEXT,
-                   content_path TEXT
-                   );
-
-                   CREATE TABLE IF NOT EXISTS avatar_emojis (
-                   user_id BIGINT PRIMARY KEY,
-                   emoji_id BIGINT,
-                   avatar_url TEXT,
-                   last_used TIMESTAMP DEFAULT (now() at time zone 'utc')
-                   );
-                """
-        await pool.execute(query)
-
-        avatar_emojis = await pool.fetch("SELECT * FROM avatar_emojis;")
-        self.avatar_emojis = {emoji["user_id"]: dict(emoji) for emoji in avatar_emojis}
-
-        return pool
-
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} - {self.user.id}")
         self.guild = self.get_guild(self.config.guild)
         self.console = bot.get_channel(self.config.console)
-
-    async def on_connect(self):
-        if not hasattr(self, "session"):
-            self.session = aiohttp.ClientSession()
-
-        if not hasattr(self, "db"):
-            self.db = await self.create_pool()
 
     def get_guild_prefix(self, guild):
         return self.prefixes.get(guild.id, [self.user.mention])[0]
@@ -189,5 +193,4 @@ class EmoteWizard(commands.Bot):
     def config(self):
         return __import__("config")
 
-bot = EmoteWizard()
-bot.run()
+EmoteWizard().run()

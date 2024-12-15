@@ -8,7 +8,9 @@ class MessageConverter(commands.Converter):
         # Attempt to convert the message normally
         try:
             message = await commands.MessageConverter().convert(ctx, arg)
-            return message
+
+            if ctx.author in message.channel.members:
+                return message
         except commands.BadArgument:
             pass
 
@@ -77,7 +79,7 @@ class WebhookConverter(commands.Converter):
 
         raise commands.BadArgument(f"Couldn't find the webhook `{arg}`")
 
-class EmojiConverter(commands.Converter):
+class CustomEmojiConverter(commands.Converter):
     async def convert(self, ctx, arg):
         emoji = discord.utils.get(ctx.bot.emojis, name=arg)
         if not emoji:

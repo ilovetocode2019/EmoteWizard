@@ -1,16 +1,11 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 
-
 def has_permissions(**perms):
-    async def predicate(ctx):
-        try:
-            await commands.has_permissions(**perms).predicate(ctx)
-            return True
-        except commands.MissingPermissions:
-            if ctx.author.id == ctx.bot.owner_id:
-                return True
-            else:
-                raise
+    def inner(func):
+        commands.has_permissions(**perms)(func)
+        app_commands.default_permissions(**perms)(func)
+        return func
 
-    return commands.check(predicate)
+    return inner

@@ -3,11 +3,12 @@ from discord.ext import commands
 from discord.ext import menus
 
 import asyncio
+import re
 import typing
 from io import BytesIO
 
 from .utils.menus import Confirm
-from .utils import converters, faked
+from .utils import checks, converters, faked
 
 def finder(text, collection, *, key=None, lazy=True):
     suggestions = []
@@ -128,9 +129,8 @@ class Emojis(commands.Cog):
 
             await message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
 
-    @commands.command(name="edit", description="Edit a reposted message")
+    @commands.hybrid_command(name="edit", description="Edit a reposted message")
     @commands.guild_only()
-    @commands.bot_has_permissions(manage_webhooks=True)
     async def edit(self, ctx, message: discord.Message, *, content):
         try:
             await ctx.message.delete()
@@ -139,7 +139,7 @@ class Emojis(commands.Cog):
 
         faked = self.bot.faked_messages.get(message.id)
 
-        if not faked.original or faked.original.author != ctx.author:
+        if not faked:
             return await ctx.send(":x: This message cannot be edited", delete_after=5)
         elif faked.original.author != ctx.author:
             return await ctx.send(":x: You are not the author of this message", delete_after=5)
@@ -155,7 +155,7 @@ class Emojis(commands.Cog):
             formatted_content, _ = self.bot.replace_emojis(content)
             await faked.replacement.edit(content=formatted_content)
 
-    @commands.command(name="delete", description="Delete a reposted message")
+    @commands.hybrid_command(name="delete", description="Delete a reposted message")
     @commands.guild_only()
     @commands.bot_has_permissions(manage_messages=True)
     async def delete(self, ctx, message: discord.Message):
@@ -171,8 +171,9 @@ class Emojis(commands.Cog):
         await faked.replacement.delete()
         self.bot.faked_messages.pop(message.id)
 
-    @commands.group(name="webhook", description="View the current webhook for the server", invoke_without_command=True)
-    @commands.has_permissions(manage_webhooks=True)
+    @commands.hybrid_group(name="webhook", description="View the current webhook for the server", invoke_without_command=True, fallback="show")
+    @commands.guild_only()
+    @checks.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook(self, ctx):
         config = await self.bot.get_webhook_config(ctx.guild)
@@ -184,7 +185,8 @@ class Emojis(commands.Cog):
         await ctx.send(f"The webhook set is `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="set", description="Set the webhook")
-    @commands.has_permissions(manage_webhooks=True)
+    @commands.guild_only()
+    @checks.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook_set(self, ctx, *, webhook: converters.WebhookConverter):
         config = await self.bot.get_webhook_config(ctx.guild)
@@ -195,8 +197,9 @@ class Emojis(commands.Cog):
         await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="create", description="Creates a webhook for the bot")
+    @commands.guild_only()
+    @checks.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
-    @commands.has_permissions(manage_webhooks=True)
     async def webhook_create(self, ctx):
         config = await self.bot.get_webhook_config(ctx.guild)
         if await config.webhook() and not await Confirm("A webhook is already set. Would you like to override it?").prompt(ctx):
@@ -214,6 +217,7 @@ class Emojis(commands.Cog):
         await ctx.send(f":white_check_mark: Webhook set to `{webhook.name}` ({webhook.id})")
 
     @webhook.command(name="unbind", description="Unbind the webhook")
+    @commands.guild_only()
     @commands.has_permissions(manage_webhooks=True)
     @commands.bot_has_permissions(manage_webhooks=True)
     async def webhook_unbind(self, ctx):
@@ -224,55 +228,51 @@ class Emojis(commands.Cog):
         await config.set_webhook(None)
         await ctx.send(":white_check_mark: Unbound webhook")
 
-    @commands.command(name="react", descrition="React to a message with any emoji", usage="<emoji> <message>")
-    async def react(self, ctx, emoji: converters.EmojiConverter, channel: typing.Optional[discord.TextChannel], *, message: converters.MessageConverter = None):
-        try:
+    @commands.hybrid_command(name="react", descrition="React to a message with any emoji")
+    @commands.guild_only()
+    async def react(self, ctx, emoji: converters.CustomEmojiConverter, message: converters.MessageConverter):
+        if not ctx.interaction and ctx.channel.permissions_for(guild.me).manage_messages:
             await ctx.message.delete()
-        except discord.Forbidden:
-            pass
 
-        # If no message is specified, default to the last message
-        channel = channel if isinstance(channel, discord.TextChannel) else ctx.channel
-        if not message:
-            messages = await channel.history(limit=1, before=ctx.message).flatten()
-            if not messages:
-                return await ctx.send(":x: I couldn't find a message to react to", delete_after=5)
-            message = messages[0]
+        if emoji in [reaction.emoji for reaction in message.reactions if reaction.emoji]:
+            return await ctx.send(":x: That reaction has already been added", delete_after=5, ephemeral=True)
+        elif len(message.reactions) > 20:
+            return await ctx.send(":x: There are already too many reactions on this message", delete_after=5, ephemeral=True)
+        elif not message.channel.permissions_for(guild.me).add_reactions:
+            return await ctx.send(":x: I am not allowed to this message", delete_after=5, ephemeral=True)
+        elif not message.channel.permissions_for(ctx.author).add_reactions:
+            return await ctx.send(":x: You aren't allowed to add reactions to this message", delete_after=5, ephemeral=True)
 
-        # Don't let users get around permissions
-        if not channel.permissions_for(ctx.author).add_reactions:
-            return await ctx.send(f":x: You don't have permissions to add reactions in {channel.mention}", delete_after=5)
+        await message.add_reaction(emoji)
 
-        # Don't add extra reactions
-        if discord.utils.find(lambda reaction: getattr(reaction.emoji, "id", None) == emoji.id, message.reactions):
-            return await ctx.send(":x: That reaction has already been added")
- 
         try:
-            await message.add_reaction(emoji)
-        except discord.HTTPException as exc:
-            if exc.code == 30010:
-                return await ctx.send(":x: The maximum number of reactions has been reached for that message", delete_after=5)
-            elif exc.code == 50013:
-                return await ctx.send(f":x: I don't have permissions to add reactions in {channel.mention}", delete_after=5)
-            else:
-                return await ctx.send(f":x: I couldn't add that reaction for an unknown reason (error code {exc.code})", delete_after=5)
-
-        def check(event):
-            return event.user_id == ctx.author.id and event.message_id == message.id and event.emoji == emoji
-        try:
-            await self.bot.wait_for("raw_reaction_add", check=check, timeout=30)
+            await self.bot.wait_for(
+                "raw_reaction_add",
+                check=lambda event: event.user_id == ctx.author.id and event.message_id == message.id and event.emoji == emoji,
+                timeout=30
+            )
         except asyncio.TimeoutError:
             pass
         finally:
             await message.remove_reaction(emoji, self.bot.user)
 
-    @commands.group(name="emoji", description="Fetch an emoji", aliases=["emote"], invoke_without_command=True)
-    async def emoji(self, ctx, emoji: converters.EmojiConverter):
+    @commands.hybrid_group(
+        name="emoji",
+        description="Show a specific emoji",
+        fallback="show",
+        invoke_without_command=True
+    )
+    async def emoji(self, ctx, emoji: discord.Emoji):
         await ctx.send(emoji)
 
     @emoji.command(name="search", description="Search for emojis by name", aliases=["find"])
     async def emoji_search(self, ctx, search):
-        results = finder(search, [(emoji.name, str(emoji)) for emoji in self.bot.emojis], key=lambda t: t[0], lazy=False)
+        results = finder(
+            search,
+            [(emoji.name, str(emoji)) for emoji in self.bot.emojis],
+            key=lambda t: t[0],
+            lazy=False
+        )
 
         if len(results) == 0:
             return await ctx.send(":x: No results found")

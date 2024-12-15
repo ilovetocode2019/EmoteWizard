@@ -1,6 +1,8 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 
+import asyncpg
 import os
 
 from .utils import faked
@@ -9,7 +11,9 @@ class Stickers(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(name="sticker", description="Use a sticker", invoke_without_command=True)
+    @commands.hybrid_group(name="sticker", description="Use a sticker", fallback="get", invoke_without_command=True)
+    @app_commands.user_install()
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def sticker(self, ctx, name):
         query = """SELECT *
                    FROM stickers
@@ -19,8 +23,8 @@ class Stickers(commands.Cog):
         if not sticker:
             return await ctx.send(":x: No sticker with that name")
 
-        if isinstance(ctx.channel, discord.DMChannel) or not (ctx.me.guild_permissions.manage_messages and ctx.me.guild_permissions.manage_webhooks):
-            return await ctx.send(sticker["content_url"])
+        if ctx.interaction or isinstance(ctx.channel, discord.DMChannel) or not (ctx.me.guild_permissions.manage_messages and ctx.me.guild_permissions.manage_webhooks):
+            return await ctx.send(file=discord.File(sticker["content_path"]))
 
         config = await self.bot.get_webhook_config(ctx.guild)
         webhook = await config.webhook()
@@ -44,30 +48,27 @@ class Stickers(commands.Cog):
 
             await ctx.message.delete()
         else:
-            await ctx.send(file=discord.File(sticker["content_url"]))
+            await ctx.send(file=discord.File(sticker["content_path"]))
 
     @sticker.command(name="create", description="Create a sticker", aliases=["add", "new"])
-    async def sticker_create(self, ctx, name):
-        if len(ctx.message.attachments) == 0:
-            return await ctx.send(":x: You must attach the sticker to the message")
+    async def sticker_create(self, ctx, name, attachment: discord.Attachment):
+        if not attachment.content_type.startswith("image/"):
+            return await ctx.send(":x: The sticker must only be an image (both static and animated allowed)")
 
         query = """SELECT COUNT(*)
                    FROM stickers
-                   WHERE stickers.name=$1;
+                   WHERE stickers.name = $1;
                 """
-        count = await self.bot.db.fetchrow(query, name)
-        if count and count["count"] != 0:
-            return await ctx.send(":x: This name is already in use")
+        result = await self.bot.db.fetchrow(query, name)
 
-        attachment = ctx.message.attachments[0]
+        if result["count"] > 0:
+            return await ctx.send(f":x: The name `{name}` is already in use")
+
         path = f"stickers/{ctx.message.id}_{attachment.filename}"
-
-        async with self.bot.session.get(attachment.url) as resp:
-            with open(path, "wb") as file:
-                file.write(await resp.read())
+        await attachment.save(path)
 
         query = """INSERT INTO stickers (owner_id, name, content_path)
-                   VALUES($1, $2, $3);
+                    VALUES($1, $2, $3);
                 """
         await self.bot.db.execute(query, ctx.author.id, name, path)
 
@@ -75,22 +76,38 @@ class Stickers(commands.Cog):
 
     @sticker.command(name="delete", description="Delete a sticker", aliases=["remove"])
     async def sticker_delete(self, ctx, name):
-        query = """SELECT FROM stickers
-                   WHERE stickers.owner_id=$1 AND stickers.name=$2;
+        query = """SELECT *
+                   FROM stickers
+                   WHERE stickers.owner_id = $1 AND stickers.name = $2;
                 """
         result = await self.bot.db.fetchrow(query, ctx.author.id, name)
 
         if not result:
-            return await ctx.send(":x: You don't own any stickers by this name")
+            return await ctx.send(f":x: You don't own any stickers by the name `{name}`")
 
         query = """DELETE FROM stickers
-                   WHERE stickers.owner_id=$1 AND stickers.name=$2;
+                   WHERE stickers.owner_id = $1 AND stickers.name = $2;
                 """
-        await self.bot.db.fetchrow(query, ctx.author.id, name)
+        await self.bot.db.execute(query, ctx.author.id, name)
 
         os.remove(result["content_path"])
-
         await ctx.send(f":white_check_mark: Deleted the sticker `{name}`")
+
+    @sticker.autocomplete("name")
+    @sticker_delete.autocomplete("name")
+    async def sticker_autocomplete(self, interaction, current):
+        query = """SELECT *
+                   FROM stickers
+                   WHERE stickers.name % $1
+                   ORDER BY similarity(stickers.name, $1) DESC
+                   LIMIT 5;
+                """
+        stickers = await self.bot.db.fetch(query, current)
+
+        return [
+            app_commands.Choice(name=sticker["name"], value=sticker["name"])
+            for sticker in stickers
+        ]
 
 async def setup(bot):
     await bot.add_cog(Stickers(bot))

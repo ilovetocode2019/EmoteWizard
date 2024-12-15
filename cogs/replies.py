@@ -7,13 +7,13 @@ import datetime
 import typing
 from PIL import Image, ImageDraw, ImageOps
 
-from .utils import converters, faked, formats
+from .utils import checks, converters, faked, formats
 
 class Replies(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(name="reply", description="Reply to a message", invoke_without_command=True)
+    @commands.hybrid_group(name="reply", description="Reply to a message", invoke_without_command=True)
     @commands.guild_only()
     @commands.bot_has_permissions(manage_messages=True, manage_webhooks=True)
     async def reply(self, ctx, message: converters.MessageConverter, *, content):

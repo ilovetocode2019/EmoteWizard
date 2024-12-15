@@ -8,7 +8,7 @@ import asyncio
 import datetime
 import humanize
 
-from .utils import checks, formats, menus
+from .utils import formats, menus
 
 class Prefix(commands.Converter):
     async def convert(self, ctx, prefix):
@@ -53,7 +53,10 @@ class Meta(commands.Cog):
         elif isinstance(error, commands.MaxConcurrencyReached):
             await ctx.send(f":x: {error}")
 
-        if isinstance(error, commands.CommandInvokeError):
+        if isinstance(error, (
+            commands.CommandInvokeError,
+            commands.HybridCommandError
+        )):
             em = discord.Embed(title=":warning: Error", description=f"An unexpected error has occured: \n```py\n{error}```", color=discord.Color.gold())
             await ctx.send(embed=em)
 
@@ -151,16 +154,6 @@ class Meta(commands.Cog):
     @commands.command(name="prefixes", description="View the prefixes in this server")
     async def prefixes(self, ctx):
         await ctx.invoke(self.prefix_list)
-
-    @commands.command(name="ignore", description="Disable/enable emoji replacing")
-    @commands.is_owner()
-    async def ignore(self, ctx):
-        if self.bot.config.ignore:
-            self.bot.config.ignore = False
-            await ctx.send(":white_check_mark: Enabled emoji replacing")
-        else:
-            self.bot.config.ignore = True
-            await ctx.send(":white_check_mark: Disabled emoji replacing")
 
 async def setup(bot):
     await bot.add_cog(Meta(bot))
