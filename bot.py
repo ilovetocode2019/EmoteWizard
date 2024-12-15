@@ -117,7 +117,7 @@ class EmoteWizard(commands.Bot):
                 """
         await self.db.execute(query)
 
-        avatar_emojis = await pool.fetch("SELECT * FROM avatar_emojis;")
+        avatar_emojis = await self.db.fetch("SELECT * FROM avatar_emojis;")
         self.avatar_emojis = {emoji["user_id"]: dict(emoji) for emoji in avatar_emojis}
 
         await self.load_extension("jishaku")
